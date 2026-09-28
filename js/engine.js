@@ -851,6 +851,10 @@ export function resolveChoice(s, key) {
       addHistory(s, '💼', 'Switched to a better job');
       return { title: 'New job!', text: 'Your new employer took over your OPT job. You got a raise.' };
     }
+    if (s.steps.i485.status === 'pending') {
+      addHistory(s, '💼', 'Switched jobs using green card portability (AC21)');
+      return { title: 'New job!', text: 'Because your green card application was already filed, a law called AC21 lets you switch to a similar job without starting over. Nice timing!' };
+    }
     const kept = s.steps.i140.status === 'approved';
     if (kept) s.keptPd = s.pd;
     else s.pd = null;
