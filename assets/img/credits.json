@@ -1,0 +1,92 @@
+[
+  {
+    "slug": "flag-india",
+    "file": "assets/img/flag-india.svg",
+    "title": "File:Flag of India.svg",
+    "author": "Government of India",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Flag_of_India.svg"
+  },
+  {
+    "slug": "flag-germany",
+    "file": "assets/img/flag-germany.svg",
+    "title": "File:Flag of Germany.svg",
+    "author": "User:SKopp, User:Madden, and other users",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Flag_of_Germany.svg"
+  },
+  {
+    "slug": "flag-mexico",
+    "file": "assets/img/flag-mexico.svg",
+    "title": "File:Flag of Mexico.svg",
+    "author": "Omar Alejandro Covarrubias Neri, 9 April 2006. Based on the 1968 arms by Francisco Eppens Helguera and Juan Manuel Gabino Villascán.",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Flag_of_Mexico.svg"
+  },
+  {
+    "slug": "flag-usa",
+    "file": "assets/img/flag-usa.svg",
+    "title": "File:Flag of the United States.svg",
+    "author": "Uploaded by Dbenbenn; edited by users such as Zscout370, Jacobolus, Indolences, and Technion.",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Flag_of_the_United_States.svg"
+  },
+  {
+    "slug": "dol-building",
+    "file": "assets/img/dol-building.webp",
+    "title": "File:Frances Perkins Building of the United States Department of Labor in Washington, D.C. - 8.jpg",
+    "author": "US Department of Labor",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Frances_Perkins_Building_of_the_United_States_Department_of_Labor_in_Washington%2C_D.C._-_8.jpg"
+  },
+  {
+    "slug": "state-dept",
+    "file": "assets/img/state-dept.webp",
+    "title": "File:Exterior of the United States Department of State Harry S. Truman Building, Washington, D.C., spring 2024 - 8.jpg",
+    "author": "U.S. Department of State",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Exterior_of_the_United_States_Department_of_State_Harry_S._Truman_Building%2C_Washington%2C_D.C.%2C_spring_2024_-_8.jpg"
+  },
+  {
+    "slug": "consulate",
+    "file": "assets/img/consulate.webp",
+    "title": "File:US Embassy New Delhi.jpg",
+    "author": "Soumya S Das",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:US_Embassy_New_Delhi.jpg"
+  },
+  {
+    "slug": "port-of-entry",
+    "file": "assets/img/port-of-entry.webp",
+    "title": "File:Laredo br1 port of entry.jpg",
+    "author": "Wbaron",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Laredo_br1_port_of_entry.jpg"
+  },
+  {
+    "slug": "uscis-office",
+    "file": "assets/img/uscis-office.webp",
+    "title": "File:Jamaica Av 153rd St td (2022-04-11) 02 - USCIS Application Support Center.jpg",
+    "author": "Tdorante10",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Jamaica_Av_153rd_St_td_%282022-04-11%29_02_-_USCIS_Application_Support_Center.jpg"
+  },
+  {
+    "slug": "interview",
+    "file": "assets/img/interview.webp",
+    "title": "File:Otay Mesa Port of Entry interior 03.jpg",
+    "author": "U.S. General Services Administration",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Otay_Mesa_Port_of_Entry_interior_03.jpg"
+  }
+]
