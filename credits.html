@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper Trail · Credits</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <style>
+    :root { --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --bg: #f8fafc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 Inter, 'Segoe UI', system-ui, sans-serif; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 16px 60px; }
+    h1 { font-size: 34px; margin: 0 0 6px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 20px; }
+    figure { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    figure img { width: 100%; height: 130px; object-fit: cover; display: block; background: #e2e8f0; }
+    figcaption { padding: 10px 12px; font-size: 12.5px; color: var(--muted); word-break: break-word; }
+    figcaption b { color: var(--ink); display: block; font-size: 13px; }
+    a { color: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p><a href="index.html">← Back to the game</a> · <a href="teacher.html">Teacher guide</a></p>
+    <h1>Image credits</h1>
+    <p>Photos and flags come from <a href="https://commons.wikimedia.org/">Wikimedia Commons</a>. Most are public domain works of the U.S. government; others are used under the Creative Commons licenses listed. Characters in the game are fictional, and people in photos are not the characters. Game code and text: written for classroom use.</p>
+    <div class="grid" id="grid"><p>Loading…</p></div>
+  </div>
+  <script>
+    fetch('assets/img/credits.json').then((r) => r.json()).then((list) => {
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      document.getElementById('grid').innerHTML = list.map((c) => `
+        <figure>
+          <img src="${esc(c.file)}" alt="${esc(c.title)}" loading="lazy">
+          <figcaption><b>${esc(c.slug)}</b>
+            <a href="${esc(c.source_url)}" target="_blank" rel="noopener">${esc(c.title)}</a><br>
+            ${esc(c.author)} · ${c.license_url ? `<a href="${esc(c.license_url)}" target="_blank" rel="noopener">${esc(c.license)}</a>` : esc(c.license)}
+          </figcaption>
+        </figure>`).join('');
+    }).catch(() => { document.getElementById('grid').innerHTML = '<p>Credits list unavailable.</p>'; });
+  </script>
+</body>
+</html>

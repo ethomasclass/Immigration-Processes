@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper Trail · Teacher Guide</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --gold: #b7791f; --bg: #f8fafc; --card: #ffffff; --accent: #1d4ed8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, 'Segoe UI', system-ui, sans-serif; }
+    header { background: #0a1020; color: #fff; padding: 36px 16px 30px; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+    header .kicker { font-family: 'JetBrains Mono', monospace; letter-spacing: .16em; font-size: 12px; color: #f5c451; }
+    h1, h2, h3 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; line-height: 1.15; }
+    header h1 { font-size: clamp(32px, 5vw, 48px); margin: 8px 0; }
+    header p { color: #cbd5e1; max-width: 700px; margin: 0; }
+    header a.btn { display: inline-block; margin-top: 18px; background: #f5c451; color: #1a1405; padding: 10px 18px; border-radius: 999px; font-weight: 700; text-decoration: none; }
+    main { padding: 28px 0 60px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; margin: 18px 0; }
+    h2 { font-size: 26px; margin: 0 0 10px; }
+    h3 { font-size: 19px; margin: 18px 0 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    code, .code { font-family: 'JetBrains Mono', monospace; background: #f1f5f9; border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .box { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fcfdff; }
+    .box b { display: block; }
+    .timeline { display: grid; grid-template-columns: 90px 1fr; gap: 6px 14px; }
+    .timeline .t { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); }
+    .note { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 14px; padding: 14px 16px; }
+    .warn { background: #fef2f2; border-color: #fca5a5; }
+    ul li, ol li { margin: 4px 0; }
+    .muted { color: var(--muted); }
+    .sm { font-size: 14px; }
+    a { color: var(--accent); }
+    @media print {
+      header { background: none; color: #000; padding: 0; }
+      header p { color: #000; }
+      header a.btn, .noprint { display: none; }
+      section { break-inside: avoid; border: none; padding: 8px 0; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="kicker">PAPER TRAIL · TEACHER GUIDE</div>
+    <h1>A 20-minute immigration card game</h1>
+    <p>Students play a fictional immigrant on their own Chromebook, side by side with a partner. They open card packs, collect forms and documents, and file them in the right order. Along the way they learn how U.S. immigration pathways actually work, and why two people doing the same things can have very different outcomes.</p>
+    <a class="btn" href="index.html">▶ Open the game</a>
+  </div>
+</header>
+<main class="wrap">
+
+  <section>
+    <h2>Learning goals</h2>
+    <p>Students will be able to:</p>
+    <ol>
+      <li><b>Sequence</b> the main steps of two real pathways: an employment-based green card (H-1B → PERM → I-140 → Visa Bulletin → I-485 → citizenship) and the H-2A seasonal guest worker program.</li>
+      <li><b>Identify</b> which agency handles each step (USCIS, Department of Labor, State Department, CBP) and who files it (the worker or the employer).</li>
+      <li><b>Explain</b> how per-country caps, lotteries, fees, processing backlogs and job ties affect how long immigration takes.</li>
+      <li><b>Evaluate</b> an immigration policy using evidence from their own play: who benefits, who waits, and what they would change.</li>
+    </ol>
+    <p class="sm muted">Connects to the C3 Framework: D2.Civ.13.6-8 (purposes, implementation and consequences of public policies), D2.Civ.12.6-8 (laws and rights), D2.Geo.8.6-8 (human migration), D2.Eco.1.6-8 (costs and benefits of decisions).</p>
+  </section>
+
+  <section>
+    <h2>Run of show (about 20 minutes)</h2>
+    <div class="timeline">
+      <div class="t">0:00</div><div><b>Set up (2 min).</b> Put the table code on the board (for example, <code>MAPLE</code>). Students pair up, open the game, type their first name and the code, and pick a character. Assign pairings (below) so partners compare different characters.</div>
+      <div class="t">0:02</div><div><b>Year 1 together (3 min).</b> Everyone reads the intro, opens their first pack, and files their first form. Yellow tip bubbles guide the first year.</div>
+      <div class="t">0:05</div><div><b>Play (10 min).</b> 12 years, about 45–60 seconds each. At each year's end, the game shows a "Partner check" screen. Partners wait for each other, compare, then start the next year together.</div>
+      <div class="t">0:15</div><div><b>Debrief (5 min).</b> Collect end-screen results on a class chart (each student reads out their one-line summary). Use the discussion questions below.</div>
+    </div>
+    <p class="sm muted">Short on time? Stop after Year 8. The Priya/Lukas gap is already clear by then.</p>
+  </section>
+
+  <section>
+    <h2>Table codes (scenarios)</h2>
+    <p>Partners must type the <b>same code</b>. The code sets the "world news" for each year, and for Priya and Lukas it also sets the lottery results. That way both computers run the same scenario without any internet connection between them. Card packs are still random for each player. You can also share a link with the code built in, for example <code>index.html?code=CEDAR</code>.</p>
+    <table>
+      <thead><tr><th>Code</th><th>Name</th><th>What it highlights</th></tr></thead>
+      <tbody>
+        <tr><td><code>MAPLE</code></td><td>Steady Times</td><td><b>Best first game.</b> Few surprises. Priya and Lukas both win the H-1B lottery on the first try, so the only difference between them is country of birth.</td></tr>
+        <tr><td><code>CEDAR</code></td><td>Luck of the Draw</td><td>Lukas loses the lottery twice while Priya wins right away. Priya leads early, but the per-country backlog usually lets Lukas pass her later.</td></tr>
+        <tr><td><code>RIVER</code></td><td>Boom and Bust</td><td>Layoffs in Year 7. A green card protects you; an H-1B tied to one job does not (60-day grace period, restarting PERM).</td></tr>
+        <tr><td><code>SUMMIT</code></td><td>Policy Shake-Up</td><td>The $100,000 H-1B fee court fight, the weighted lottery, fee increases, farm-wage rule changes, the remittance tax and Visa Bulletin retrogression. Good for "policy changes mid-game" discussions.</td></tr>
+        <tr><td><code>HARBOR</code></td><td>Long Lines</td><td>Processing slowdowns, consulate backlogs and retrogression.</td></tr>
+        <tr><td><code>PRAIRIE</code></td><td>Harvest Seasons</td><td>Built around the H-2A guest worker: heat waves, drought, interview waivers and wage rules.</td></tr>
+        <tr><td><i>anything else</i></td><td>Custom</td><td>Any other code (like <code>ROOM12</code>) makes a random scenario that repeats the same way for everyone who types it.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Characters & recommended pairings</h2>
+    <div class="grid">
+      <div class="box"><b>🇮🇳 Priya · India</b>Software engineer with a U.S. master's degree. H-1B lottery → employer-sponsored green card (EB-2). She usually gets an approved I-140, then waits in the India EB-2 line, which is decades long. Rare cards let her try the EB-1 category or move to Canada.</div>
+      <div class="box"><b>🇩🇪 Lukas · Germany</b>Same degree, same employer, same forms as Priya. Germany's EB-2 line was "Current" in 2026, so he usually gets a green card and may reach citizenship within the 12 years.</div>
+      <div class="box"><b>🇲🇽 Marco · Mexico</b>H-2A seasonal farmworker. Each year he needs a visa and must cross at a port of entry to work the season, then return home. He saves toward a family house. H-2A does not lead to a green card; a rare year-round sponsor card can open the EB-3 path.</div>
+    </div>
+    <h3>Pairings</h3>
+    <ul>
+      <li><b>Priya vs. Lukas: "Same job, different country."</b> The clearest lesson: identical choices, very different results because of the 7% per-country cap.</li>
+      <li><b>Marco vs. Lukas: "Two kinds of worker visa."</b> A seasonal visa with no path vs. a skilled-worker visa with a path.</li>
+      <li><b>Marco vs. Priya: "Two long roads."</b> Both work in the U.S. for years; both hit walls they can't control.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>How the game teaches</h2>
+    <div class="grid">
+      <div class="box"><b>🔍 Hidden steps</b>The Paper Trail shows each next step only as "? ? ?" plus clues: the agency and who files it. Students read the cards' "When to use it" text to work out the order.</div>
+      <div class="box"><b>❌ Rejections cost money</b>Filing too early gets rejected. The fee is lost (as in real life) and a Rejection Notice clogs the hand.</div>
+      <div class="box"><b>📨 Requests for Evidence</b>The right form without the right documents triggers an RFE. Students must find the document before the deadline.</div>
+      <div class="box"><b>⏳ Wait cards</b>"Date Not Current" cards can't be played or discarded. Priya's hand fills with them while she waits in line, so the backlog takes up her hand space.</div>
+      <div class="box"><b>🎁 Choices</b>Each year students draft a card: lawyers, legal clinics, premium processing, savings, or rare "legendary" choices such as moving to Canada.</div>
+      <div class="box"><b>🚩 Scam awareness</b>A "Fast Visa Help!" notario card promises guaranteed approval. Students who read carefully spot the red flags.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Debrief questions</h2>
+    <ol>
+      <li>What decided how far you got: your choices, luck, money, or where you were born? Give one example from your game.</li>
+      <li>Priya and Lukas filed the same forms for the same employer. Why did one usually get a green card and the other didn't? Is the 7% per-country limit fair?</li>
+      <li>Marco worked in the U.S. for many seasons but could not get a green card. Should years of seasonal work count toward permanent residency? What would farms, workers and taxpayers say?</li>
+      <li>Which step surprised you the most? Why do you think the law works that way?</li>
+      <li>Employers file many of these steps. What power does that give employers over workers? Is that good, bad, or both?</li>
+      <li>If you were in Congress, what ONE rule would you change? Who would support it, and who would object?</li>
+    </ol>
+    <h3>Class chart</h3>
+    <p>Every end screen shows a one-line summary like <span class="code">PAPER TRAIL · Table MAPLE · Priya · Waiting in line (3/5) · 12 yrs · $76,000 · 1 rejections</span>. Make a chart on the board with columns for character, security level and money, and have students add their result. The pattern by character is often the strongest evidence for the discussion.</p>
+  </section>
+
+  <section>
+    <h2>Key vocabulary</h2>
+    <table>
+      <tbody>
+        <tr><td><b>Visa</b></td><td>Permission to travel to the U.S. and ask to enter for a specific purpose.</td></tr>
+        <tr><td><b>Green card</b></td><td>Lawful permanent residency. You can live and work in the U.S. permanently.</td></tr>
+        <tr><td><b>H-1B</b></td><td>Temporary work visa for jobs that need a college degree. 85,000 new visas a year, given by lottery.</td></tr>
+        <tr><td><b>H-2A</b></td><td>Temporary visa for seasonal farm work. No yearly limit; the worker is tied to one employer.</td></tr>
+        <tr><td><b>PERM</b></td><td>Labor certification: the employer proves no qualified U.S. worker is available.</td></tr>
+        <tr><td><b>Priority date</b></td><td>Your place in the green card line.</td></tr>
+        <tr><td><b>Visa Bulletin</b></td><td>A monthly State Department chart showing which priority dates can get green cards now.</td></tr>
+        <tr><td><b>Per-country cap</b></td><td>No country can get more than 7% of green cards in a year.</td></tr>
+        <tr><td><b>RFE</b></td><td>Request for Evidence: the government asks for missing documents.</td></tr>
+        <tr><td><b>Naturalization</b></td><td>Becoming a U.S. citizen after holding a green card, usually for 5 years.</td></tr>
+        <tr><td><b>Notario fraud</b></td><td>A scam where someone who is not a lawyer offers immigration "help."</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="note warn">
+    <h2>Classroom sensitivity</h2>
+    <ul>
+      <li>Some students may be immigrants or have family members with different immigration statuses. <b>Never ask students about their own or their family's status</b>, and let them opt out of sharing personal connections.</li>
+      <li>The characters are fictional composites. The game does not simulate raids, detention or deportation. When a character "has to leave," it's shown as the end of a visa, not as enforcement.</li>
+      <li>This game covers two legal pathways only: employment-based and seasonal worker. It does not cover family sponsorship, refugees, asylum, the diversity lottery or unauthorized immigration. Mention that these exist and work differently.</li>
+      <li>Frame the debrief around <i>systems and policies</i>, not around whether people "deserve" to immigrate.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Accuracy & simplifications</h2>
+    <p>Facts, fees and waiting lines are based on official sources as of <b>September 2026</b>: the USCIS fee schedule (Form G-1055), the September 2026 Visa Bulletin, DOL processing data, and Federal Register rules. Immigration policy changes often, and several 2026 rules were in court or only proposed when this was written.</p>
+    <h3>Things the game simplifies</h3>
+    <ul class="sm">
+      <li><b>Time</b> moves in 1-year turns, so processing times are rounded (for example, PERM ≈ 2 years, I-140 and I-485 ≈ 1 year).</li>
+      <li><b>Money</b> is shown as savings after rent, taxes and living costs, not gross salary. Fees are approximate (paper-filing amounts).</li>
+      <li><b>The Visa Bulletin</b> moves at a steady, simplified speed. Real movement is irregular and can go backward.</li>
+      <li><b>The H-1B lottery</b> results are scripted in the named scenarios so that partner comparisons are fair. Real odds were about 35% in the 2025 lottery.</li>
+      <li><b>Family members</b> (spouses and children, who also use up green card numbers) are left out.</li>
+      <li><b>Priya's "Move to Canada" and "EB-1"</b> cards stand for real choices many backlogged workers make, in a very simplified form.</li>
+    </ul>
+    <h3>Key facts used</h3>
+    <ul class="sm">
+      <li>85,000 new H-1B visas a year (65,000 + 20,000 for U.S. advanced degrees); about 344,000 registrations and a ~35% selection rate in the FY2026 lottery; wage-weighted selection since Feb 2026. <a href="https://www.uscis.gov/working-in-the-united-states/temporary-workers/h-1b-specialty-occupations/h-1b-electronic-registration-process">USCIS</a> · <a href="https://www.federalregister.gov/documents/2025/12/29/2025-23853/weighted-selection-process-for-registrants-and-petitioners-seeking-to-file-cap-subject-h-1b">Federal Register</a></li>
+      <li>Fees: H-1B registration $215; I-129 H-1B about $3,380 with required employer fees; I-140 $715 + $600; I-485 $1,440; N-400 $760; premium processing $2,965 (since Mar 2026). <a href="https://www.uscis.gov/g-1055">USCIS G-1055</a></li>
+      <li>Sept 2026 Visa Bulletin: EB-2 rest of world "Current"; EB-2 India unavailable (last cutoff July 15, 2014); EB-3 Other Workers Mexico Apr 1, 2022. <a href="https://travel.state.gov/content/travel/en/legal/visa-law0/visa-bulletin.html">State Dept.</a></li>
+      <li>7% per-country cap (25,620); at least 140,000 employment-based green cards a year including family members. A 2026 NFAP projection put the potential EB-2 wait for Indians filing in 2026 at 179 years. <a href="https://nfap.com/">NFAP</a></li>
+      <li>H-2A: no cap; a record 398,258 positions certified in FY2025; about 90% of visas go to Mexican workers; employers must provide housing and transportation and reimburse visa and travel costs; 3-year maximum stay, then 60 days outside the U.S. <a href="https://www.dol.gov/agencies/whd/workers/h2a">DOL</a> · <a href="https://www.uscis.gov/working-in-the-united-states/temporary-workers/h-2a-temporary-agricultural-workers">USCIS</a></li>
+      <li>The 2025 AEWR (H-2A minimum wage) rule lowered wages in most states; a federal court ruled it unlawful in Aug 2026 but left rates in place for now.</li>
+      <li>$100,000 H-1B proclamation (Sept 2025): students changing status inside the U.S. were exempt; vacated by a federal court in June 2026; a separate $103,265 fee was proposed in Aug 2026.</li>
+      <li>2025 civics test: up to 20 questions from 128; 12 correct to pass. <a href="https://www.uscis.gov/citizenship-resource-center/naturalization-test-and-study-resources/2025-civics-test">USCIS</a></li>
+      <li>Notario fraud: "A notario público is not authorized to provide you with any legal services related to immigration." <a href="https://www.uscis.gov/scams-fraud-and-misconduct/avoid-scams/common-scams">USCIS</a></li>
+    </ul>
+  </section>
+
+  <section class="noprint">
+    <h2>Tech notes</h2>
+    <ul class="sm">
+      <li>Works in Chrome on Chromebooks; no login or account. Nothing is sent online. Progress is saved in the browser, so if a tab reloads the student can press <b>Continue</b>.</li>
+      <li>Sound is off by default. Students can turn it on with the 🔇 button (headphones recommended).</li>
+      <li>Photos come from Wikimedia Commons. See <a href="credits.html">Image credits</a>.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

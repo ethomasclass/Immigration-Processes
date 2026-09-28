@@ -1,0 +1,10 @@
+{
+  "name": "paper-trail",
+  "private": true,
+  "type": "module",
+  "description": "Paper Trail — a classroom card game about U.S. immigration pathways",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "simulate": "node tests/simulate.mjs"
+  }
+}
