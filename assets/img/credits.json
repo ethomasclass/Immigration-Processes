@@ -88,5 +88,68 @@
     "license": "Public domain",
     "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
     "source_url": "https://commons.wikimedia.org/wiki/File:Otay_Mesa_Port_of_Entry_interior_03.jpg"
+  },
+  {
+    "slug": "fingerprint",
+    "file": "assets/img/fingerprint.webp",
+    "title": "File:US-VISIT (CBP).jpg",
+    "author": "Gerald Nino/CPB",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:US-VISIT_%28CBP%29.jpg"
+  },
+  {
+    "slug": "airport-cbp",
+    "file": "assets/img/airport-cbp.webp",
+    "title": "File:CBP officers process inbound travelers at Dulles International Airport (53705250616).jpg",
+    "author": "CBP Photography",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:CBP_officers_process_inbound_travelers_at_Dulles_International_Airport_%2853705250616%29.jpg"
+  },
+  {
+    "slug": "green-card",
+    "file": "assets/img/green-card.webp",
+    "title": "File:2017-us-green-card-specimen.png",
+    "author": "USCIS",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:2017-us-green-card-specimen.png"
+  },
+  {
+    "slug": "passport",
+    "file": "assets/img/passport.webp",
+    "title": "File:Mexican Passport.jpg",
+    "author": "Jewben09",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Mexican_Passport.jpg"
+  },
+  {
+    "slug": "graduation",
+    "file": "assets/img/graduation.webp",
+    "title": "File:Camp Randall Stadium during graduation - graduates getting into seats.jpg",
+    "author": "Yinan Chen",
+    "license": "Public Domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Camp_Randall_Stadium_during_graduation_-_graduates_getting_into_seats.jpg"
+  },
+  {
+    "slug": "farm-harvest",
+    "file": "assets/img/farm-harvest.webp",
+    "title": "File:Lewis Taylor Farms seven months after Hurricane Michael (20190507-OSEC-LSC-0841).jpg",
+    "author": "USDAgov",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Lewis_Taylor_Farms_seven_months_after_Hurricane_Michael_%2820190507-OSEC-LSC-0841%29.jpg"
+  },
+  {
+    "slug": "crops-truck",
+    "file": "assets/img/crops-truck.webp",
+    "title": "File:Lewis Taylor Farms seven months after Hurricane Michael (20190507-OSEC-LSC-0685).jpg",
+    "author": "USDAgov",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Lewis_Taylor_Farms_seven_months_after_Hurricane_Michael_%2820190507-OSEC-LSC-0685%29.jpg"
   }
 ]
