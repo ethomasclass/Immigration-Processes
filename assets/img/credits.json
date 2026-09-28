@@ -232,5 +232,41 @@
     "license": "CC BY 2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0",
     "source_url": "https://commons.wikimedia.org/wiki/File:Pesos_mexicanos.jpg"
+  },
+  {
+    "slug": "calendar",
+    "file": "assets/img/calendar.webp",
+    "title": "File:WallCalendar.jpg",
+    "author": "Claudio Elias",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:WallCalendar.jpg"
+  },
+  {
+    "slug": "lottery",
+    "file": "assets/img/lottery.webp",
+    "title": "File:Lottery drum (tambiolo).jpg",
+    "author": "Betsy Weber",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Lottery_drum_%28tambiolo%29.jpg"
+  },
+  {
+    "slug": "lawyer",
+    "file": "assets/img/lawyer.webp",
+    "title": "File:Law Books 6.JPG",
+    "author": "Vdollero",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Law_Books_6.JPG"
+  },
+  {
+    "slug": "mail",
+    "file": "assets/img/mail.webp",
+    "title": "File:USPS mailbox Mapleton, Utah.JPG",
+    "author": "An Errant Knight",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:USPS_mailbox_Mapleton%2C_Utah.JPG"
   }
 ]
