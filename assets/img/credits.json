@@ -126,6 +126,15 @@
     "source_url": "https://commons.wikimedia.org/wiki/File:Mexican_Passport.jpg"
   },
   {
+    "slug": "naturalization",
+    "file": "assets/img/naturalization.webp",
+    "title": "File:Centennial Naturalization Ceremony (28948349346).jpg",
+    "author": "LassenNPS",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Centennial_Naturalization_Ceremony_%2828948349346%29.jpg"
+  },
+  {
     "slug": "graduation",
     "file": "assets/img/graduation.webp",
     "title": "File:Camp Randall Stadium during graduation - graduates getting into seats.jpg",
