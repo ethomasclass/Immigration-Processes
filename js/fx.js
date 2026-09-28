@@ -41,7 +41,7 @@ function loop() {
   else running = false;
 }
 
-export function burst(x, y, { colors = ['#f5c451', '#ffffff', '#60a5fa'], count = 40, power = 7, shape = 'confetti', gravity = 0.18 } = {}) {
+export function burst(x, y, { colors = ['#ffd84a', '#f6f0e2', '#ff5fa2'], count = 40, power = 7, shape = 'confetti', gravity = 0.18 } = {}) {
   if (reduce) return;
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -63,7 +63,7 @@ export function burstAt(el, opts) {
 
 export function confettiRain() {
   if (reduce) return;
-  const colors = ['#f5c451', '#22c55e', '#60a5fa', '#f472b6', '#ffffff'];
+  const colors = ['#ffd84a', '#1fa463', '#2f6fd6', '#ff5fa2', '#f6f0e2'];
   for (let i = 0; i < 140; i++) {
     parts.push({ x: Math.random() * innerWidth, y: -20 - Math.random() * 300, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, g: 0.05,
       rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, size: 7 + Math.random() * 7, color: colors[i % colors.length], life: 220, shape: 'confetti' });
@@ -73,25 +73,29 @@ export function confettiRain() {
 
 // ───────────── stamp ─────────────
 const STAMP_COLORS = {
-  APPROVED: 'green', FILED: 'blue', REJECTED: 'red', RFE: 'amber', SELECTED: 'gold', 'NOT SELECTED': 'red', CURRENT: 'gold',
-  'GREEN CARD': 'green', CITIZEN: 'gold', EXTENDED: 'green', SCAM: 'red', 'EB-1': 'gold', CANADA: 'red', SPONSOR: 'gold', DENIED: 'red',
+  APPROVED: 'green', SENT: 'blue', ENTERED: 'blue', REJECTED: 'red', 'MISSING PAPERS': 'orange', SELECTED: 'pink',
+  'NOT PICKED': 'red', 'IN LINE': 'blue', 'YOUR TURN': 'pink', 'GREEN CARD': 'green', SCAM: 'red',
 };
+const BAD = ['REJECTED', 'NOT PICKED', 'SCAM'];
+const BIG = ['GREEN CARD', 'SELECTED', 'YOUR TURN'];
 export function stamp(text) {
   if (!text) return;
   const wrap = document.createElement('div');
   wrap.className = 'stamp-wrap';
   wrap.innerHTML = `<div class="stamp ${STAMP_COLORS[text] || 'blue'}">${text}</div>`;
   document.body.appendChild(wrap);
-  const bad = ['REJECTED', 'NOT SELECTED', 'SCAM', 'DENIED'].includes(text);
   setTimeout(() => {
-    sound(bad ? 'bad' : 'stamp');
-    if (bad) {
-      document.getElementById('app').classList.add('screen-shake');
-      setTimeout(() => document.getElementById('app').classList.remove('screen-shake'), 450);
-    } else if (['GREEN CARD', 'CITIZEN', 'SELECTED', 'CURRENT'].includes(text)) {
-      confettiRain();
-      sound('fanfare');
-    } else burst(innerWidth / 2, innerHeight / 2, { colors: ['#4ade80', '#bbf7d0', '#fff'], count: 30 });
+    if (BAD.includes(text)) {
+      sound('bad');
+      const app = document.getElementById('app');
+      app.classList.add('shake-screen');
+      setTimeout(() => app.classList.remove('shake-screen'), 450);
+    } else if (BIG.includes(text)) {
+      sound('stamp'); confettiRain(); sound('fanfare');
+    } else {
+      sound('stamp');
+      burst(innerWidth / 2, innerHeight / 2, { colors: ['#ffd84a', '#f6f0e2', '#ff5fa2'], count: 30 });
+    }
   }, 180);
   setTimeout(() => wrap.remove(), 1900);
 }

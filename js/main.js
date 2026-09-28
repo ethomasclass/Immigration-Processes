@@ -1,99 +1,100 @@
 import * as E from './engine.js';
-import { CARDS, TYPE_INFO, AGENCIES } from './data/cards.js';
+import { CARDS, TYPES, AGENCIES, SET_SIZE } from './data/cards.js';
 import { CHARACTERS, PAIRINGS } from './data/characters.js';
 import { SCENARIOS, getScenario, normalizeCode } from './data/scenarios.js';
+import { DILEMMAS } from './data/dilemmas.js';
+import { art, portrait, cardBack, DEFS } from './art.js';
 import * as FX from './fx.js';
 
 const app = document.getElementById('app');
-const overlayRoot = document.getElementById('overlay-root');
-const toastRoot = document.getElementById('toast-root');
+const overlays = document.getElementById('overlay-root');
+const toasts = document.getElementById('toast-root');
+document.body.insertAdjacentHTML('afterbegin', DEFS);
+
 let S = null;
 let IMG = {};
 let shownMoney = null;
 const setup = { name: '', code: 'MAPLE', charId: null };
 
-// ───────────────────────── utilities ─────────────────────────
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ───────────────────────── helpers ─────────────────────────
+const $ = (q, r = document) => r.querySelector(q);
+const $$ = (q, r = document) => [...r.querySelectorAll(q)];
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
-  del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } },
+  del(k) { try { localStorage.removeItem(k); } catch { /* storage blocked */ } },
 };
-function save() { if (S) store.set('pt-save', JSON.stringify(S)); }
-function loadSave() { try { const s = JSON.parse(store.get('pt-save')); return s && s.v === 1 ? s : null; } catch { return null; } }
+const save = () => { if (S) store.set('pt-save-v2', JSON.stringify(S)); };
+const loadSave = () => { try { const s = JSON.parse(store.get('pt-save-v2')); return s?.v === 2 ? s : null; } catch { return null; } };
+const k$ = (n) => { const a = Math.abs(n); const t = a >= 1000 ? `$${(a / 1000).toFixed(a % 1000 && a < 10000 ? 1 : 0)}K` : `$${a}`; return t; };
+const imgSrc = (slug) => IMG[slug]?.file || `assets/img/${slug}.webp`;
+const flagSrc = (slug) => IMG[slug]?.file || `assets/img/${slug}.svg`;
+const boss = () => (S?.track === 'h2a' ? 'farm' : 'boss');
 
 async function loadCredits() {
-  try {
-    const r = await fetch('assets/img/credits.json', { cache: 'no-cache' });
-    if (r.ok) for (const c of await r.json()) IMG[c.slug] = c;
-  } catch { /* offline or missing */ }
+  try { const r = await fetch('assets/img/credits.json', { cache: 'no-cache' }); if (r.ok) for (const c of await r.json()) IMG[c.slug] = c; } catch { /* offline */ }
 }
-const imgSrc = (slug) => (IMG[slug] && IMG[slug].file) || `assets/img/${slug}.webp`;
-const flagSrc = (slug) => (IMG[slug] && IMG[slug].file) || `assets/img/${slug}.svg`;
-const imgTag = (slug, cls = '', alt = '') => `<img class="${cls}" src="${imgSrc(slug)}" alt="${esc(alt)}" loading="lazy" onerror="this.style.display='none'">`;
-
-function toast(text, tone = '') {
+function toast(text) {
   const t = document.createElement('div');
-  t.className = `toast ${tone}`;
+  t.className = 'toast';
   t.textContent = text;
-  toastRoot.appendChild(t);
-  setTimeout(() => t.remove(), 4200);
+  toasts.appendChild(t);
+  setTimeout(() => t.remove(), 3800);
 }
+function log(icon, text) { if (S) { S.log.unshift({ year: E.yearOf(S), icon, text }); S.log = S.log.slice(0, 60); } }
 
-function logJ(icon, text, tone = 'info') {
-  if (!S) return;
-  S.journal.unshift({ icon, text, tone, cal: E.yearLabel(S) });
-  S.journal = S.journal.slice(0, 40);
-}
-
-const LOGO_SVG = `<svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="6" width="40" height="52" rx="6" fill="#0f172a" stroke="#f5c451" stroke-width="4"/><rect x="18" y="16" width="24" height="4" rx="2" fill="#f5c451"/><rect x="18" y="26" width="24" height="4" rx="2" fill="#94a3b8"/><rect x="18" y="34" width="16" height="4" rx="2" fill="#94a3b8"/><circle cx="44" cy="46" r="12" fill="#e11d48"/><path d="M38 46l4 4 8-8" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
-const TYPE_EMOJI = { form: '📄', doc: '🗂️', money: '💵', expense: '🧾', event: '⚡', action: '🧭', wait: '⏳' };
-
-// ───────────────────────── card rendering ─────────────────────────
-function formNo(c) {
-  const m = (c.sub || '').match(/(I-\d+[A-Z]?|ETA-\d+[A-Z]?|DS-\d+|N-\d+|I-94)/);
-  return m ? m[0] : '';
-}
-function cardHTML(id, { down = false, uid = '', cls = '', ttl, expires, track } = {}) {
-  const c = CARDS[id];
-  const t = TYPE_INFO[c.type];
-  const ag = AGENCIES[c.agency] || AGENCIES.LIFE;
-  const tr = track || (S && S.track) || 'h1b';
-  const foot = [];
-  if (c.fee) foot.push(`💵 ${c.fee.amt ? E.fmtMoney(c.fee.amt) : 'No fee'}${c.fee.amt ? ' · ' + (c.fee.payer === 'you' ? 'You' : 'Employer') : ''}`);
-  if (c.time && c.type === 'form') foot.push(`⏳ ${c.time}`);
-  if (c.docs && c.docs.length) foot.push(`📎 ${c.docs.length} doc${c.docs.length > 1 ? 's' : ''}`);
-  if (c.type === 'action') {
-    const cost = c.cost ? c.cost[tr] ?? 0 : 0;
-    foot.push(cost ? `💵 ${E.fmtMoney(cost)}` : '💵 Free');
+// ───────────────────────── cards ─────────────────────────
+function coin(c) {
+  if (c.type === 'money') return `<div class="c-coin plus">+${k$(c.amount)}</div>`;
+  if (c.type === 'bill') return `<div class="c-coin minus">−${k$(c.amount)}</div>`;
+  if (c.type === 'wait') return `<div class="c-coin minus">${c.ttl}<small>TURN${c.ttl > 1 ? 'S' : ''}</small></div>`;
+  if (c.type === 'form') {
+    if (!c.fee) return '<div class="c-coin free">FREE</div>';
+    return `<div class="c-coin ${c.payer === 'you' ? '' : 'boss'}">${k$(c.fee)}<small>${c.payer === 'you' ? 'YOU' : c.agency === 'DOL' || ['farm-request'].includes(c.id) ? 'BOSS' : 'BOSS'}</small></div>`;
   }
-  if (c.expires) foot.push(`⌛ Expires`);
-  const big = c.type === 'money' || c.type === 'expense' || (c.type === 'event' && c.effect?.kind === 'money');
-  const fno = formNo(c);
-  return `<div class="card t-${c.type} r-${c.rarity} ${down ? 'down' : ''} ${cls} ${down && ['rare', 'legendary'].includes(c.rarity) ? 'glow-rare' : ''}" data-uid="${uid}" data-id="${id}" tabindex="0" role="button" aria-label="${esc(c.title)} (${t.label})">
+  if (c.type === 'action') {
+    const cost = c.cost?.[S?.track || 'h1b'] ?? 0;
+    return cost ? `<div class="c-coin">${k$(cost)}<small>YOU</small></div>` : '<div class="c-coin free">FREE</div>';
+  }
+  if (c.cost) return `<div class="c-coin">${k$(c.cost)}<small>YOU</small></div>`;
+  return '';
+}
+function cardHTML(id, { down = false, uid = '', ttl, cls = '', hot = false } = {}) {
+  const c = CARDS[id];
+  const t = TYPES[c.type];
+  const turns = c.type === 'form' ? (typeof c.turns === 'string' ? '⏱ NEXT TURN' : c.turns ? `⏱ ${c.turns} TURN` : '⏱ SAME TURN') : c.type === 'wait' ? `STUCK ${ttl ?? c.ttl}` : '';
+  return `<div class="card t-${c.type} r-${c.rarity} ${down ? 'down' : ''} ${hot ? 'hot' : ''} ${cls}" data-id="${id}" data-uid="${uid}" tabindex="0" role="button" aria-label="${esc(c.name)}, ${t.label} card">
     <div class="card-inner">
       <div class="face front">
-        <div class="c-top"><span class="c-type">${t.icon} ${t.label}</span><span class="c-agency" style="--agc:${ag.color}">${esc(ag.name)}</span></div>
-        <div class="c-art"><div class="ph">${TYPE_EMOJI[c.type]}</div>${imgTag(c.img, '', '')}${fno ? `<span class="c-formno">${fno}</span>` : ''}<span class="c-gem" title="${c.rarity}"></span></div>
-        ${ttl !== undefined ? `<span class="c-ttl">${ttl} yr left</span>` : ''}
-        <div class="c-title">${esc(c.title)}</div>
-        ${big ? `<div class="c-big">${esc(c.sub)}</div>` : `<div class="c-sub">${esc(c.sub)}</div>`}
-        <div class="c-text">${esc(c.blurb)}</div>
-        <div class="c-foot">${foot.map((f) => `<span>${esc(f)}</span>`).join('')}</div>
-        ${c.type === 'wait' ? '<div class="c-stamp">WAIT</div>' : ''}
-        <div class="c-shine"></div>
+        <div class="c-head"><div class="c-name">${esc(c.name)}</div>${coin(c)}</div>
+        <div class="c-art">${art(c.art, c.type)}<div class="foil"></div></div>
+        <div class="c-type"><b>${t.label} · ${AGENCIES[c.agency].short}</b><span>${esc(c.formNo || '')}</span></div>
+        <div class="c-text">${esc(c.text)}</div>
+        <div class="c-foot"><span>${String(c.no).padStart(3, '0')}/${SET_SIZE}</span><span class="gem"></span>${turns ? `<span class="chip">${turns}</span>` : '<span></span>'}</div>
       </div>
-      <div class="face back"><div class="seal"><div><i>🗂️</i><b>PAPER<br>TRAIL</b></div></div></div>
+      <div class="face back">${cardBack()}</div>
     </div>
   </div>`;
 }
-// Shiny highlight that follows the pointer
+function charCardHTML(id, { cls = '' } = {}) {
+  const ch = CHARACTERS[id];
+  return `<div class="card t-char r-rare ${cls}" style="--c:${ch.color}" data-char="${id}">
+    <div class="card-inner"><div class="face front">
+      <div class="c-head"><div class="c-name">${ch.name}</div><div class="c-coin free">${k$(ch.startMoney)}<small>START</small></div></div>
+      <div class="c-art">${portrait(id)}<div class="foil"></div></div>
+      <div class="c-type"><b>${esc(ch.role)}</b><span>${esc(ch.country)}</span></div>
+      <div class="c-stats">
+        <div><b>Visa</b>${ch.track === 'h1b' ? 'Skilled worker (H-1B)' : 'Farm season (H-2A)'}</div>
+        <div><b>Family</b>${esc(ch.family)} (${esc(ch.familyRole)})</div>
+      </div>
+      <div class="c-foot"><span>${ch.home.split(',')[0].toUpperCase()}</span><span class="gem"></span><span class="chip">PLAYER</span></div>
+    </div><div class="face back">${cardBack()}</div></div>
+  </div>`;
+}
 document.addEventListener('pointermove', (e) => {
-  const card = e.target.closest && e.target.closest('.card');
+  const card = e.target.closest?.('.card');
   if (!card) return;
   const r = card.getBoundingClientRect();
   card.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
@@ -101,81 +102,67 @@ document.addEventListener('pointermove', (e) => {
 }, { passive: true });
 
 // ───────────────────────── overlays ─────────────────────────
-function openOverlay(html, { cls = '', onClose, dismiss = true } = {}) {
+function overlay(html, { cls = '', close = true, onClose, bare = false } = {}) {
   const ov = document.createElement('div');
   ov.className = 'overlay';
-  ov.innerHTML = `<div class="modal ${cls}" role="dialog" aria-modal="true">${html}</div>`;
-  overlayRoot.appendChild(ov);
-  const close = () => { ov.remove(); onClose && onClose(); };
-  if (dismiss) {
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  ov.innerHTML = bare ? html : `<div class="sheet ${cls}" role="dialog" aria-modal="true">${html}</div>`;
+  overlays.appendChild(ov);
+  let done = false;
+  const shut = () => { if (done) return; done = true; ov.remove(); onClose && onClose(); };
+  if (close) {
+    ov.addEventListener('click', (e) => { if (e.target === ov) shut(); });
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') shut(); });
   }
-  $$('[data-close]', ov).forEach((b) => b.addEventListener('click', close));
-  setTimeout(() => { const f = $('.btn.primary', ov) || $('button', ov); f && f.focus(); }, 50);
-  return { el: ov, close };
+  $$('[data-close]', ov).forEach((b) => (b.onclick = shut));
+  setTimeout(() => ($('.btn.go', ov) || $('button', ov))?.focus(), 60);
+  return { el: ov, shut };
 }
-function closeAllOverlays() { overlayRoot.innerHTML = ''; }
-
-function confirmBox(title, text, yes) {
+const clearOverlays = () => { overlays.innerHTML = ''; };
+function resultSheet(res) {
+  const icon = { rejected: '❌', missing: '📎', approved: '✅', filed: '📬', saved: '🛡️', help: '🧭' }[res.kind] || '💬';
   return new Promise((resolve) => {
-    let answered = false;
-    const { el, close } = openOverlay(`
-      <h2>${esc(title)}</h2>
-      <p style="font-size:16px">${esc(text)}</p>
-      <div class="row" style="justify-content:center"><button class="btn" data-close>Cancel</button><button class="btn primary" id="cf-yes">${esc(yes)}</button></div>`,
-    { cls: 'result-modal', onClose: () => { if (!answered) resolve(false); } });
-    $('#cf-yes', el).onclick = () => { answered = true; close(); resolve(true); };
+    overlay(`<div style="font-size:52px;line-height:1">${icon}</div><h2>${esc(res.title || '')}</h2><p>${esc(res.text || '')}</p>
+      <div class="row" style="justify-content:center"><button class="btn go" data-close>OK</button></div>`, { cls: 'result-sheet', onClose: resolve });
   });
 }
-
-function resultModal(res) {
+function confirmSheet(title, text, yes) {
   return new Promise((resolve) => {
-    const icon = { rejected: '❌', rfe: '📨', approved: '✅', filed: '📬', shield: '🛡️', action: '🧭' }[res.kind] || 'ℹ️';
-    const { close } = openOverlay(`
-      <div class="big-icon">${icon}</div>
-      <h2>${esc(res.title || '')}</h2>
-      <p>${esc(res.text || '')}</p>
-      <div class="row" style="justify-content:center"><button class="btn primary" data-close>Got it</button></div>`, { cls: 'result-modal', onClose: resolve });
-    void close;
+    let ok = false;
+    const { el, shut } = overlay(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row"><button class="btn" data-close>Cancel</button><button class="btn go" id="yes">${esc(yes)}</button></div>`, { onClose: () => resolve(ok) });
+    $('#yes', el).onclick = () => { ok = true; shut(); };
   });
 }
 
 // ───────────────────────── TITLE ─────────────────────────
 function renderTitle() {
-  closeAllOverlays();
+  clearOverlays();
   S = null;
   const saved = loadSave();
   app.innerHTML = `
-  <section class="screen">
-    <div class="title-wrap">
-      <div class="title-hero">
-        <div class="logo">${LOGO_SVG}<span class="logo-text">PAPER TRAIL</span></div>
-        <h1>How long does it take to <em>immigrate</em>?</h1>
-        <p class="lead">A deckbuilding game about U.S. immigration. Open packs, collect forms and documents, file them in the right order — and see how country of birth, money, and luck shape the journey.</p>
-        <div class="title-actions">
-          <button class="btn primary big pulse" id="new-game">▶ New Game</button>
-          ${saved && !saved.over ? `<button class="btn big" id="continue">Continue ${esc(CHARACTERS[saved.charId].name)} · ${E.START_CAL + saved.year - 1}</button>` : ''}
-        </div>
-        <div class="title-links">
-          <a href="teacher.html">Teacher guide</a>
-          <a href="credits.html">Image credits & sources</a>
-          <a href="#" id="sound-toggle">${FX.isMuted() ? '🔇 Sound off' : '🔊 Sound on'}</a>
-        </div>
+  <section class="screen"><div class="title">
+    <div>
+      <h1 class="wordmark">Paper<span>Trail</span></h1>
+      <p class="tagline">A card game about coming to the U.S. to work. Open packs, file forms, make hard choices, and see how long the road really is.</p>
+      <div class="title-actions">
+        <button class="btn go big bounce" id="new">Play</button>
+        ${saved && !saved.over ? `<button class="btn big" id="cont">Continue ${esc(CHARACTERS[saved.charId].name)}</button>` : ''}
       </div>
-      <div class="title-fan" aria-hidden="true">
-        ${cardHTML('h1b-reg', { cls: '', track: 'h1b' })}
-        ${cardHTML('i485', { track: 'h1b' })}
-        ${cardHTML('poe', { track: 'h2a' })}
+      <div class="title-links">
+        <a href="teacher.html">Teacher guide</a>
+        <a href="credits.html">Credits</a>
+        <button id="snd">${FX.isMuted() ? 'Sound: off' : 'Sound: on'}</button>
       </div>
+      <div class="set-line">2026 EDITION · ${SET_SIZE} CARDS · 3 PLAYERS</div>
     </div>
-  </section>`;
-  const fan = $$('.title-fan .card');
-  fan.forEach((c, i) => { c.style.transform = `translate(-50%,-50%) translate(${(i - 1) * 110}px, ${Math.abs(i - 1) * 14}px) rotate(${(i - 1) * 12}deg)`; c.style.zIndex = i === 1 ? 3 : 1; });
-  $('#new-game').onclick = () => { FX.sound('click'); renderSetup(); };
-  const cont = $('#continue');
-  if (cont) cont.onclick = () => { S = saved; resumeGame(); };
-  $('#sound-toggle').onclick = (e) => { e.preventDefault(); FX.setMuted(!FX.isMuted()); renderTitle(); };
+    <div class="fan">${charCardHTML('marco')}${charCardHTML('priya')}${charCardHTML('lukas')}</div>
+  </div></section>`;
+  $$('.fan .card').forEach((c, i) => {
+    c.style.transform = `translate(-50%,-50%) translate(${(i - 1) * 130}px, ${Math.abs(i - 1) * 22}px) rotate(${(i - 1) * 10}deg)`;
+    c.style.zIndex = i === 1 ? 3 : 1;
+  });
+  $('#new').onclick = () => { FX.sound('click'); renderSetup(); };
+  if ($('#cont')) $('#cont').onclick = () => { S = saved; resume(); };
+  $('#snd').onclick = () => { FX.setMuted(!FX.isMuted()); renderTitle(); };
 }
 
 // ───────────────────────── SETUP ─────────────────────────
@@ -183,64 +170,36 @@ function renderSetup() {
   setup.name = store.get('pt-name') || setup.name;
   setup.code = store.get('pt-code') || setup.code;
   app.innerHTML = `
-  <section class="screen">
-    <div class="setup">
-      <div class="step-label">New game</div>
-      <h2>Set up your table</h2>
-      <p class="muted">Sit next to a partner. You each play on your own computer, but type the <b>same table code</b> so the same news happens in both games at the same time.</p>
-      <div class="setup-grid">
-        <div class="field">
-          <label for="pname">Your first name</label>
-          <input id="pname" maxlength="20" autocomplete="off" placeholder="First name only" value="${esc(setup.name)}">
-          <div class="help">Only saved on this computer. Nothing is sent online.</div>
-        </div>
-        <div class="field">
-          <label for="pcode">Table code (from your teacher)</label>
-          <input id="pcode" class="code" maxlength="12" autocomplete="off" value="${esc(setup.code)}">
-          <div class="chips">${SCENARIOS.map((s) => `<button class="chip" data-code="${s.id}">${s.id} · ${esc(s.level)}</button>`).join('')}</div>
-          <div class="scenario-note" id="scn-note"></div>
-        </div>
-      </div>
-      <div class="step-label">Choose your character</div>
-      <div class="char-grid" style="margin-top:10px">
-        ${Object.values(CHARACTERS).map((c) => `
-          <button class="char-card" data-char="${c.id}" style="--c:${c.color}">
-            <div class="char-bg" style="background-image:url('${imgSrc(c.bg)}')"></div>
-            <div class="char-body">
-              <img class="flag" src="${flagSrc(c.flag)}" alt="Flag of ${esc(c.country)}" onerror="this.style.visibility='hidden'">
-              <h3>${esc(c.name)}</h3>
-              <div class="tag">${esc(c.tagline)}</div>
-              <p>${esc(c.intro)}</p>
-              <div class="rival">Great rival: ${esc(CHARACTERS[c.rival].name)} (${esc(CHARACTERS[c.rival].country)})</div>
-            </div>
-          </button>`).join('')}
-      </div>
-      <div class="setup-foot" style="margin-top:22px">
-        <div class="pairing-tip" id="pair-tip">${PAIRINGS.map((p) => `<b>${CHARACTERS[p.a].name} vs. ${CHARACTERS[p.b].name}:</b> ${esc(p.note)}`).join('<br>')}</div>
-        <div style="display:flex;gap:10px"><button class="btn" id="back">← Back</button><button class="btn primary big" id="start" disabled>Start →</button></div>
-      </div>
+  <section class="screen"><div class="setup">
+    <h2>Pick your player</h2>
+    <div class="fields">
+      <div class="field"><label for="pname">Your first name</label><input id="pname" maxlength="20" autocomplete="off" value="${esc(setup.name)}" placeholder="First name"><div class="help">Only saved on this computer.</div></div>
+      <div class="field"><label for="pcode">Table code</label><input id="pcode" class="code" maxlength="12" autocomplete="off" value="${esc(setup.code)}">
+        <div class="codes">${SCENARIOS.map((s) => `<button data-code="${s.id}">${s.id}</button>`).join('')}</div>
+        <div class="help" id="scn"></div></div>
     </div>
-  </section>`;
-  const note = $('#scn-note');
-  const updCode = () => {
-    const code = normalizeCode($('#pcode').value) || 'MAPLE';
-    const sc = getScenario(code);
-    setup.code = code;
-    note.innerHTML = `<b>${esc(sc.name)}</b> — ${esc(sc.summary)}`;
-    $$('.chip[data-code]').forEach((b) => b.classList.toggle('on', b.dataset.code === sc.id));
+    <div class="pick-row">${Object.keys(CHARACTERS).map((id) => `<button class="char-pick" data-char="${id}" aria-label="Play as ${CHARACTERS[id].name}"><img class="pick-flag" src="${flagSrc(CHARACTERS[id].flag)}" alt="" onerror="this.remove()">${charCardHTML(id)}</button>`).join('')}</div>
+    <div class="setup-foot">
+      <div class="pair-tip"><b>Sit with a partner and type the same table code.</b> Try ${PAIRINGS.map((p) => `${CHARACTERS[p.a].name} + ${CHARACTERS[p.b].name}`).join(', or ')}.</div>
+      <div style="display:flex;gap:12px"><button class="btn" id="back">Back</button><button class="btn go big" id="start" disabled>Start</button></div>
+    </div>
+  </div></section>`;
+  const upd = () => {
+    const sc = getScenario($('#pcode').value);
+    setup.code = sc.code;
+    $('#scn').innerHTML = `<b>${esc(sc.name)}:</b> ${esc(sc.summary)}`;
+    $$('.codes button').forEach((b) => b.classList.toggle('on', b.dataset.code === sc.id));
   };
-  $('#pcode').addEventListener('input', updCode);
-  $$('.chip[data-code]').forEach((b) => b.onclick = () => { $('#pcode').value = b.dataset.code; updCode(); FX.sound('click'); });
-  updCode();
-  const upd = () => { $('#start').disabled = !setup.charId; };
-  $$('.char-card').forEach((b) => b.onclick = () => {
-    setup.charId = b.dataset.char;
-    $$('.char-card').forEach((x) => x.classList.toggle('on', x === b));
-    FX.sound('click');
-    upd();
-  });
-  if (setup.charId) $(`.char-card[data-char="${setup.charId}"]`).classList.add('on');
+  $('#pcode').addEventListener('input', upd);
+  $$('.codes button').forEach((b) => (b.onclick = () => { $('#pcode').value = b.dataset.code; upd(); FX.sound('click'); }));
   upd();
+  $$('.char-pick').forEach((b) => (b.onclick = () => {
+    setup.charId = b.dataset.char;
+    $$('.char-pick').forEach((x) => x.classList.toggle('on', x === b));
+    $('#start').disabled = false;
+    FX.sound('flip');
+  }));
+  if (setup.charId) { $(`.char-pick[data-char="${setup.charId}"]`).classList.add('on'); $('#start').disabled = false; }
   $('#back').onclick = renderTitle;
   $('#start').onclick = () => {
     setup.name = $('#pname').value.trim().slice(0, 20);
@@ -252,225 +211,157 @@ function renderSetup() {
 
 // ───────────────────────── INTRO ─────────────────────────
 function renderIntro() {
-  const c = CHARACTERS[setup.charId];
-  const sc = getScenario(setup.code);
+  const ch = CHARACTERS[setup.charId];
   app.innerHTML = `
-  <section class="screen">
-    <div class="intro">
-      <div class="intro-hero" style="background-image:url('${imgSrc(c.bg)}')"></div>
-      <div class="intro-body">
-        <div class="step-label">Table ${esc(sc.code)} · ${esc(sc.name)}</div>
-        <h2><img src="${flagSrc(c.flag)}" alt="" onerror="this.remove()">${esc(setup.name ? `${setup.name} plays ${c.name}` : c.name)}</h2>
-        <p style="font-size:17px">${esc(c.intro)}</p>
-        <div class="intro-goal"><b>🎯 Goal:</b> ${esc(c.goal)}</div>
-        <div class="howto">
-          <div><span class="n">1</span><b>Open a pack</b>Each year = one pack of 5 cards. Tear it open!</div>
-          <div><span class="n">2</span><b>Read the cards</b>Click a card to learn what it is and when to use it.</div>
-          <div><span class="n">3</span><b>File in order</b>Drag forms onto your Paper Trail. Wrong order = rejected, and the fee is lost.</div>
-          <div><span class="n">4</span><b>End the year</b>Pick a bonus card, compare with your partner, then start the next year.</div>
-        </div>
-        <p class="muted" style="font-size:13.5px">Characters are fictional, but the forms, fees, rules and waiting times are based on real U.S. immigration law as of 2026 (simplified for the game). You have 12 years (${E.START_CAL}–${E.START_CAL + 11}).</p>
-        <div class="row" style="display:flex;justify-content:space-between;gap:10px;margin-top:16px">
-          <button class="btn" id="back">← Change character</button>
-          <button class="btn primary big pulse" id="go">Begin ${E.START_CAL} →</button>
-        </div>
+  <section class="screen"><div class="intro">
+    ${charCardHTML(ch.id)}
+    <div>
+      <h2>${esc(setup.name ? `${setup.name}, you're ${ch.name}` : `You're ${ch.name}`)}</h2>
+      <p>${esc(ch.intro)}</p>
+      <div class="goal"><b>Goal:</b> ${esc(ch.goal)}</div>
+      <div class="steps3">
+        <div><b>1 · Open</b>Each turn, tear open a pack of cards.</div>
+        <div><b>2 · Play</b>Drag forms onto your road in the right order. Too early = rejected!</div>
+        <div><b>3 · Decide</b>End each turn with one hard choice. Then compare with your partner.</div>
       </div>
+      <p class="fine">8 turns, about 1.5 years each (${E.TURN_YEARS[0]}–${E.TURN_YEARS[7]}). The characters are made up, but the forms, fees and wait times come from real U.S. law in 2026.</p>
+      <div style="display:flex;gap:12px;margin-top:18px"><button class="btn" id="back">Change player</button><button class="btn go big bounce" id="go">Begin</button></div>
     </div>
-  </section>`;
+  </div></section>`;
   $('#back').onclick = renderSetup;
   $('#go').onclick = () => {
     S = E.newGame({ code: setup.code, charId: setup.charId, name: setup.name });
     S.tips = {};
-    beginYear();
+    shownMoney = S.money;
+    beginTurn();
   };
 }
 
 // ───────────────────────── BOARD ─────────────────────────
-function guideText() {
+function sayText() {
   if (S.over) return 'Your journey is over.';
-  if (!S.packOpened) return `Start by opening your ${E.yearLabel(S)} pack →`;
-  const tips = [];
-  const orders = [S.order];
-  if (S.track === 'h2a' && S.flags.sponsored) orders.push(S.permOrder);
+  if (!S.packOpened) return `Turn ${S.turn}: open your pack to get new cards.`;
+  const orders = [S.order, ...(S.flags.sponsored ? [S.permOrder] : [])];
   for (const order of orders) {
     for (const id of order) {
       const t = E.stepDef(id);
       const st = S.steps[id];
       if (st.status === 'approved') continue;
-      if (t.kind === 'season') { tips.push('Get through the Port of Entry to work the season.'); break; }
-      if (st.status === 'rfe') { tips.push(`RFE! Find: ${st.missing.map((d) => CARDS[d].title).join(', ')}`); break; }
-      if (st.status === 'pending') { tips.push(t.kind === 'lottery' ? 'Waiting for lottery results next year.' : `${t.label} is processing. Collect documents for what comes next.`); if (S.track === 'h1b') break; else continue; }
-      if (st.status === 'waiting') { tips.push('You’re waiting in the green card line. Keep your visa status valid!'); break; }
-      tips.push(st.revealed ? `Next: file “${CARDS[t.card].title}”.` : `Next step is secret: ${t.by === 'employer' ? 'your employer files it' : 'you file it'} with ${AGENCIES[t.agency].full}. Read your cards for clues!`);
-      break;
+      if (t.kind === 'season') return S.status === 'season' ? 'You\'re in! Finish your turn to work the harvest.' : 'Get across the border to work the harvest.';
+      if (st.status === 'missing') return `Waiting on papers. Find: ${st.missing.map((d) => CARDS[d].name).join(' and ')}.`;
+      if (st.status === 'pending') {
+        if (S.track === 'h2a' && order === S.order) continue;
+        return t.kind === 'lottery' ? 'You\'re in the lottery. Results next turn. Finish your turn.' : `"${CARDS[t.card].name}" is being reviewed. Finish your turn.`;
+      }
+      if (st.status === 'waiting' || t.kind === 'wait') return st.status === 'waiting' ? 'You\'re waiting in line. There\'s nothing to send. Finish your turn.' : 'Keep going! Get your ticket number first.';
+      const name = CARDS[t.card].name;
+      return S.hand.some((h) => h.id === t.card) ? `Drag "${name}" onto the glowing space.` : `You need "${name}". Watch for it in your next pack.`;
     }
   }
-  if (S.status === 'h1b' && S.year >= S.h1b.expire - 1) tips.unshift('⚠️ File an H-1B Extension before your visa runs out!');
-  return (tips[0] || 'Nothing to file right now.') + ' Then press End Year.';
+  return 'Finish your turn.';
 }
 
-function nodeHTML(id, cur, isLast) {
+function spaceHTML(id, isCurrent, small) {
   const t = E.stepDef(id);
   const st = S.steps[id];
-  const ag = AGENCIES[t.agency] || AGENCIES.LIFE;
-  let cls = 'node';
+  const ag = AGENCIES[t.agency]?.short || '';
+  const by = t.by === 'boss' ? (S.track === 'h2a' ? 'Farm files' : 'Boss files') : t.by === 'you' ? 'You file' : 'Wait';
+  const known = isCurrent || st.shown || ['approved', 'pending', 'missing', 'waiting'].includes(st.status);
+  let inner = '';
   let badge = '';
-  let extra = '';
-  const known = st.revealed || st.status === 'approved' || t.kind === 'season' || t.kind === 'bulletin';
-  if (st.status === 'approved') { cls += ' approved'; badge = st.auto ? '✔ Done by employer' : '✔ Approved'; }
-  else if (st.status === 'pending') { cls += ' pending'; badge = t.kind === 'lottery' ? '🎟 In the lottery' : `⏳ ${st.timer} yr left`; }
-  else if (st.status === 'rfe') { cls += ' rfe'; badge = `⚠ RFE: need ${st.missing.map((d) => CARDS[d].title).join(', ')}`; }
-  else if (st.status === 'waiting') {
-    cls += ' waiting'; badge = '⏳ Waiting in line';
-    const b = E.bulletinInfo(S);
-    extra = `<div class="mini-line">Line at: ${E.fmtDate(b.cutoff)}<br>You: ${E.fmtDate(b.pd)}</div>`;
-  } else if (cur) { cls += ' current'; badge = t.kind === 'bulletin' ? 'Needs an approved I-140' : t.kind === 'season' ? 'After Port of Entry' : '▶ Next step'; }
-  else { cls += ' locked'; badge = t.kind === 'season' ? 'After Port of Entry' : 'Later'; }
-  if (id === 'season' && S.status === 'season') { cls = 'node pending'; badge = '🧺 Season ready'; }
-  if (id === 'n400' && S.gcYear && st.status === 'todo') extra = `<div class="mini-line" style="color:#bbf7d0">Eligible in ${E.START_CAL + S.gcYear + 3}</div>`;
-  if (isLast) cls += ' final';
-  const icon = t.kind === 'lottery' ? '🎟️' : t.kind === 'bulletin' ? '📰' : t.kind === 'season' ? '🧺' : '📄';
-  return `<div class="${cls}" data-step="${id}" style="--ac:${ag.color}">
-    <div class="strip"></div>
-    <div class="n-top"><span>${icon} ${esc(ag.name)}</span></div>
-    <div class="n-title ${known ? '' : 'unknown'}">${known ? esc(t.label) : '? ? ?'}</div>
-    <div class="n-hint">${t.by === 'employer' ? 'Employer files' : t.by === 'you' ? 'You file' : 'Wait'}</div>
-    ${extra}
-    <span class="badge">${esc(badge)}</span>
-  </div>`;
+  let cls = 'space';
+  if (t.kind === 'wait') {
+    if (st.status === 'waiting' || st.status === 'approved') {
+      const info = E.lineInfo(S);
+      inner = `<div class="mini-sign"><span class="hd">NOW<br>SERVING</span><span class="num">${info.isCurrent ? 'ALL' : E.fmtDate(info.cutoff).replace(' ', ' ')}</span><span class="you">YOU: ${S.pd ? E.fmtDate(S.pd) : '—'}</span></div>`;
+      if (st.status === 'approved') badge = '<span class="token-badge ok">✓</span>';
+      else badge = `<span class="token-badge wait">${E.waitEstimate(S) ?? '?'}T</span>`;
+      cls += st.status === 'approved' ? ' done' : '';
+    } else inner = `<div class="slot"><span class="agency">${ag}</span><span class="q">#</span><span class="who-files">Wait in line</span></div>`;
+  } else if (t.kind === 'season') {
+    inner = `<div class="slot ${S.status === 'season' ? 'goal-slot' : ''}"><span class="q">🧺</span><span class="who-files">${S.status === 'season' ? 'Ready!' : 'After border'}</span></div>`;
+  } else if (['approved', 'pending', 'missing'].includes(st.status)) {
+    inner = cardHTML(t.card);
+    cls += ' done';
+    if (st.status === 'approved') badge = `<span class="token-badge ok">${st.auto ? S.track === 'h2a' ? 'FARM' : '✓' : '✓'}</span>`;
+    else if (st.status === 'missing') badge = `<span class="token-badge miss">NEEDS ${esc(st.missing.map((d) => CARDS[d].name).join(' + ').toUpperCase())}</span>`;
+    else badge = `<span class="token-badge wait">${t.kind === 'lottery' ? '🎟' : `⏱${st.timer}`}</span>`;
+  } else {
+    inner = `<div class="slot"><span class="agency">${ag}</span><span class="q">${isCurrent ? '▶' : '?'}</span><span class="who-files">${by}</span></div>`;
+  }
+  if (isCurrent) cls += ' current';
+  const name = t.card ? CARDS[t.card].name : t.name;
+  const tag = known || t.kind ? esc(t.kind === 'wait' ? 'Now Serving' : t.kind === 'season' ? 'Harvest' : name) : '? ? ?';
+  return `<div class="${cls}" data-step="${id}">${inner}${badge}<div class="tag">${tag}</div></div>`;
 }
 
-function trailHTML() {
-  const order = S.order;
-  const cur = order.find((id) => S.steps[id].status !== 'approved');
-  let html = `<div class="trail">${order.map((id, i) => nodeHTML(id, id === cur, i === order.length - 1)).join('')}</div>`;
+function roadHTML() {
+  const ch = CHARACTERS[S.charId];
+  const cur = E.currentStep(S)?.id;
+  let html = `<div class="road ${S.flags.sponsored ? 'small' : ''}" id="road">${S.order.map((id) => spaceHTML(id, id === cur)).join('')}`;
+  if (S.track === 'h1b') html += `<div class="space locked"><div class="slot goal-slot"><span class="q">★</span><span class="who-files">5 yrs after<br>green card</span></div><div class="tag">Citizen</div></div>`;
+  html += '</div>';
   if (S.track === 'h2a') {
     if (S.flags.sponsored) {
-      const pc = S.permOrder.find((id) => S.steps[id].status !== 'approved');
-      html += `<div class="trail sub"><div class="trail-label">Green card</div>${S.permOrder.map((id, i) => nodeHTML(id, id === pc, i === S.permOrder.length - 1)).join('')}</div>`;
+      const pc = E.currentStep(S, S.permOrder)?.id;
+      html += `<div class="road small" id="road2">${S.permOrder.map((id) => spaceHTML(id, id === pc)).join('')}</div>`;
     } else {
-      html += `<div class="trail sub"><div class="node locked" style="max-width:none"><div class="n-top"><span>🔒 PERMANENT PATH</span></div><div class="n-title" style="min-height:0">No path to a green card</div><div class="n-hint">H-2A is temporary. Only a year-round employer could sponsor you (EB-3). Watch for a rare card…</div></div></div>`;
+      html += `<div class="perm-banner">🔒 <span><b>No road to a green card.</b> Seasonal farm visas are temporary. Only a year-round job could open one.</span></div>`;
     }
   }
+  void ch;
   return html;
-}
-
-function statusPills() {
-  const p = [`<span class="pill">🪪 ${esc(E.statusLabel(S))}</span>`];
-  if (S.track === 'h1b') {
-    if (S.status === 'opt') p.push(`<span class="pill ${S.year >= 3 ? 'warn' : ''}">🎓 OPT work permit ends after ${E.START_CAL + 2}</span>`);
-    if (S.lotteryTries) p.push(`<span class="pill">🎟 Lottery tries: ${S.lotteryTries}</span>`);
-    if (S.status === 'h1b') p.push(`<span class="pill ${S.year >= S.h1b.expire - 1 ? 'warn' : ''}">📅 H-1B years used: ${S.year - S.h1b.start + 1} of ${S.steps.i140.status === 'approved' ? 'no limit (I-140 approved)' : 6}</span>`);
-    if (S.pd) p.push(`<span class="pill">🎫 Priority date ${E.fmtDate(S.pd)}</span>`);
-  } else {
-    p.push(`<span class="pill">🧺 Seasons worked: ${S.seasons}</span>`);
-    if (S.flags.knowRights) p.push('<span class="pill">⚖️ Knows rights</span>');
-  }
-  if (S.flags.shield) p.push('<span class="pill">🛡️ Lawyer on call</span>');
-  if (S.flags.premium) p.push('<span class="pill">⚡ Premium processing ready</span>');
-  if (S.flags.organize) p.push('<span class="pill">🗂 Organized</span>');
-  return p.join('');
-}
-
-function lineVizHTML() {
-  const ch = CHARACTERS[S.charId];
-  if (S.track === 'h2a' && !S.flags.sponsored) {
-    const pct = Math.max(0, Math.min(100, (S.money / ch.familyGoal) * 100));
-    return `<div class="line-viz"><div class="lv-head"><b>🏠 Family house fund</b><span class="mono">${E.fmtMoney(S.money)} / ${E.fmtMoney(ch.familyGoal)}</span></div>
-      <div class="fund-bar"><div style="width:${pct}%"></div></div>
-      <div class="muted" style="font-size:12.5px;margin-top:6px">A good U.S. season earns about ${E.fmtMoney(16000 * S.wageMult)}. Your family needs $6,000 a year to live. Missing a season means going into debt.</div></div>`;
-  }
-  const b = E.bulletinInfo(S);
-  const now = E.yearLabel(S);
-  const isCurrent = b.cutoff >= now - 0.2;
-  const cutoffTxt = isCurrent ? 'CURRENT (no wait)' : E.fmtDate(b.cutoff);
-  if (b.pd == null) {
-    return `<div class="line-viz"><div class="lv-head"><b>📰 Green card line: ${esc(b.label)}</b><span class="mono">Now serving: ${cutoffTxt}</span></div>
-      <div class="muted" style="font-size:13px">${isCurrent ? 'This line has no backlog right now. You’ll join it when your I-140 is approved.' : `This line is serving people who got in line in <b style="color:#fecdd3">${Math.floor(b.cutoff)}</b> — ${Math.round(now - b.cutoff)} years ago. You’ll get your place in line when your I-140 is approved.`}</div></div>`;
-  }
-  const lo = Math.floor(Math.min(b.cutoff, b.pd)) - 1;
-  const hi = Math.ceil(Math.max(b.pd, now)) + 1;
-  const pos = (v) => `${Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100))}%`;
-  const est = E.estimateWait(S);
-  return `<div class="line-viz"><div class="lv-head"><b>📰 Your place in line: ${esc(b.label)}</b><span class="mono">${b.current ? '✅ CURRENT' : `≈ ${est} more years`}</span></div>
-    <div class="line-bar"><div class="fill" style="width:${pos(b.cutoff)}"></div>
-      <div class="scale"><span>${lo}</span><span>${hi}</span></div>
-      <div class="you" style="left:${pos(b.pd)}"><span>You: ${E.fmtDate(b.pd)}</span></div></div>
-    <div class="muted" style="font-size:12.5px;margin-top:22px">Blue = how far the line has moved (now serving ${cutoffTxt}). Gold = your priority date.</div></div>`;
 }
 
 function renderBoard() {
   const ch = CHARACTERS[S.charId];
-  const sec = E.security(S);
-  const year = E.yearLabel(S);
-  const handCount = S.hand.length;
+  const lad = E.ladder(S);
+  const year = E.yearOf(S);
+  const over = S.hand.length > E.HAND_LIMIT;
   app.innerHTML = `
   <div id="game">
-    <header class="hud">
-      <div class="logo">${LOGO_SVG.replace('logo-mark', 'logo-mark" style="width:34px;height:34px')}<span class="logo-text">PAPER TRAIL</span></div>
-      <div class="who"><img src="${flagSrc(ch.flag)}" alt="Flag of ${esc(ch.country)}" onerror="this.style.visibility='hidden'"><div><b>${esc(ch.name)}</b>${S.name && S.name !== ch.name ? ` <span class="muted" style="font-size:12px">(${esc(S.name)})</span>` : ''}<small>${esc(E.statusLabel(S))}</small></div></div>
+    <header class="tokens">
+      <div class="token who"><div class="ava">${portrait(S.charId)}</div><div><span class="v">${esc(ch.name)}</span><span class="k">${esc(E.statusText(S))}</span></div></div>
+      <div class="token"><div><span class="k">Turn ${S.turn} of ${E.TURNS}</span><span class="v">${year}</span></div><div class="turns">${Array.from({ length: E.TURNS }, (_, i) => `<i class="${i + 1 < S.turn ? 'done' : i + 1 === S.turn ? 'now' : ''}"></i>`).join('')}</div></div>
       <div class="spacer"></div>
-      <div class="stat"><span class="k">Table ${esc(S.code)}</span><span class="v">${year}</span><div class="year-dots">${Array.from({ length: E.MAX_YEARS }, (_, i) => `<i class="${i + 1 < S.year ? 'done' : i + 1 === S.year ? 'now' : ''}"></i>`).join('')}</div></div>
-      <div class="stat"><span class="k">${S.track === 'h2a' ? 'Family savings' : 'Savings'}</span><span class="v ${S.money < 0 ? 'neg' : ''}" id="money">${E.fmtMoney(shownMoney ?? S.money)}</span></div>
-      <div class="stat"><span class="k">Security</span><div class="pips">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= sec ? 'on' : ''}"></i>`).join('')}</div><span class="sec-label">${E.SECURITY_LABELS[sec]}</span></div>
-      <button class="icon-btn" id="snd" title="Sound">${FX.isMuted() ? '🔇' : '🔊'}</button>
-      <button class="icon-btn" id="menu" title="Menu">☰</button>
+      <div class="token money-token"><div><span class="k">${S.track === 'h2a' ? `House fund · goal ${k$(ch.familyGoal)}` : 'Savings'}</span><span class="v ${S.money < 0 ? 'neg' : ''}" id="money">${E.money$(shownMoney ?? S.money)}</span></div></div>
+      <div class="token" title="How secure your status is"><div><span class="k">Status</span><span class="v" style="font-size:20px">${E.LADDER[lad]}</span></div><div class="ladder">${[1, 2, 3, 4].map((i) => `<i class="${i <= lad ? 'on' : ''}" style="height:${8 + i * 6}px"></i>`).join('')}</div></div>
+      <button class="icon-btn" id="log" title="What happened" aria-label="What happened">📓</button>
+      <button class="icon-btn" id="snd" title="Sound" aria-label="Sound">${FX.isMuted() ? '🔇' : '🔊'}</button>
+      <button class="icon-btn" id="menu" title="Menu" aria-label="Menu">☰</button>
     </header>
-    <section class="trail-wrap" id="trail">
-      <div class="trail-head"><h3>Your Paper Trail</h3><span class="guide">${esc(guideText())}</span></div>
-      ${trailHTML()}
-      <div class="status-row">${statusPills()}</div>
+    <section class="road-wrap">
+      <div class="road-label">${esc(ch.name)}'s road <span class="hint">${esc(sayText())}</span></div>
+      ${roadHTML()}
     </section>
-    <section class="middle">
-      <div class="panel"><h4><span>🗂 Document folder</span><span>${S.folder.length}</span></h4><div class="folder-list">
-        ${S.folder.map((f) => `<button class="doc-chip ${f.expires ? 'exp' : ''}" data-doc="${f.id}">${imgTag(CARDS[f.id].img, '', '')}<span><b>${esc(CARDS[f.id].title)}</b><small>${f.expires ? `Expires after ${E.START_CAL + f.expires - 1}` : esc(CARDS[f.id].sub)}</small></span></button>`).join('') || '<div class="muted" style="font-size:13px">No documents yet.</div>'}
-      </div></div>
-      <div class="center-grid">
-        ${lineVizHTML()}
-        <div class="panel"><h4><span>📓 Journal</span></h4><div class="journal">
-          ${S.journal.slice(0, 14).map((j) => `<div class="jl ${j.tone}"><span class="yr">${j.cal}</span><span>${j.icon} ${esc(j.text)}</span></div>`).join('') || '<div class="muted">Your story will appear here.</div>'}
-        </div></div>
+    <section class="mid">
+      <button class="papers" id="papers" aria-label="Your papers"><div class="pile"><span></span><span></span><span></span></div><div><b>Papers · ${S.folder.length}</b><small>${esc(S.folder.map((f) => CARDS[f.id].name).join(', ') || 'None yet')}</small></div></button>
+      <div class="center">
+        ${S.packOpened ? '<button class="btn go big" id="finish">Finish turn →</button>' : '<button class="btn go big bounce" id="open">Open pack</button>'}
       </div>
-      <div class="panel actions-panel">
-        <button class="pack-btn" id="pack-btn" ${S.packOpened ? 'disabled' : ''} aria-label="Open this year's pack">
-          ${miniPackHTML()}
-          <span class="lbl">${S.packOpened ? '✓ Pack opened' : `Open ${year} pack`}</span>
-        </button>
-        <button class="btn" id="help">❓ How to play</button>
-      </div>
+      <button class="pack-pile" id="pile" ${S.packOpened ? 'disabled' : ''} style="--pc:${ch.color}"><div><b>${S.packOpened ? 'Opened' : 'New pack'}</b><small>${E.PACK_SIZE} cards</small></div><div class="mini"></div></button>
     </section>
     <section class="hand-wrap">
-      <div class="hand-head"><span>✋ Your hand · <span class="${handCount > E.HAND_LIMIT ? 'over' : ''}">${handCount} / ${E.HAND_LIMIT} cards</span></span>
-        <button class="btn ${S.packOpened ? 'primary pulse-soft' : ''} end-btn" id="end-year" ${S.packOpened ? '' : 'disabled'}>End ${year} →</button></div>
-      <div class="hand" id="hand">
-        ${S.hand.map((h, i) => cardHTML(h.id, { uid: h.uid, ttl: h.ttl, cls: '' })).join('') || '<div class="hand-empty">Your hand is empty. Open a pack to get cards.</div>'}
-      </div>
+      <div class="hand-count ${over ? 'over' : ''}">HAND ${S.hand.length}/${E.HAND_LIMIT}</div>
+      <div class="hand" id="hand">${S.hand.map((h) => cardHTML(h.id, { uid: h.uid, ttl: h.ttl })).join('') || `<div class="hand-empty">${S.packOpened ? 'No cards in your hand.' : 'Open your pack to get cards.'}</div>`}</div>
     </section>
   </div>`;
-  // fan the hand
   const cards = $$('#hand .card');
-  const n = cards.length;
   cards.forEach((c, i) => {
-    const off = i - (n - 1) / 2;
-    c.style.transform = `translateY(${Math.abs(off) * 4}px) rotate(${off * 2.2}deg)`;
+    const off = i - (cards.length - 1) / 2;
+    c.style.transform = `translateY(${Math.abs(off) * 5}px) rotate(${off * 3}deg)`;
     c.style.zIndex = i + 1;
     enableDrag(c);
   });
-  $('#pack-btn').onclick = openPack;
-  $('#end-year').onclick = doEndYear;
-  $('#help').onclick = showHelp;
+  $('#open')?.addEventListener('click', openPack);
+  $('#pile').onclick = openPack;
+  $('#finish')?.addEventListener('click', finishTurn);
+  $('#papers').onclick = showPapers;
+  $('#log').onclick = showLog;
   $('#menu').onclick = showMenu;
   $('#snd').onclick = () => { FX.setMuted(!FX.isMuted()); $('#snd').textContent = FX.isMuted() ? '🔇' : '🔊'; };
-  $$('.doc-chip').forEach((b) => b.onclick = () => inspectCard({ id: b.dataset.doc }, true));
+  $$('.space .card').forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
   animateMoney();
-}
-
-function miniPackHTML() {
-  const ch = CHARACTERS[S.charId];
-  return `<div class="mini-pack" style="border-radius:8px;background:linear-gradient(135deg, ${ch.color}, #111827 60%, ${ch.color});box-shadow:0 12px 30px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.25);display:grid;place-items:center;position:relative;overflow:hidden">
-    <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.35) 45%,transparent 60%)"></div>
-    <div style="text-align:center"><div style="font-size:30px">🗂️</div><div style="font-family:var(--font-display);font-weight:800;letter-spacing:.14em;font-size:12px">PAPER<br>TRAIL</div><div class="mono" style="font-size:10px;margin-top:4px;background:rgba(0,0,0,.35);border-radius:99px;padding:1px 6px">${E.yearLabel(S)}</div></div>
-  </div>`;
 }
 
 function animateMoney() {
@@ -481,220 +372,246 @@ function animateMoney() {
   shownMoney = to;
   if (from === to) return;
   const t0 = performance.now();
-  const dur = 900;
   if (to > from) FX.sound('coin');
   const step = (t) => {
-    const k = Math.min(1, (t - t0) / dur);
-    const v = from + (to - from) * (1 - Math.pow(1 - k, 3));
-    el.textContent = E.fmtMoney(v);
+    const k = Math.min(1, (t - t0) / 800);
+    const v = from + (to - from) * (1 - (1 - k) ** 3);
+    el.textContent = E.money$(v);
     el.classList.toggle('neg', v < 0);
     if (k < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-  FX.burstAt(el, { colors: to > from ? ['#86efac', '#fff', '#f5c451'] : ['#fca5a5', '#fff'], count: 16, power: 4, shape: 'spark' });
+  FX.burstAt(el, { colors: to > from ? ['#1fa463', '#ffd84a', '#f6f0e2'] : ['#ef4b3f', '#f6f0e2'], count: 14, power: 4, shape: 'spark' });
 }
 
-// ───────────────────────── drag & inspect ─────────────────────────
-function enableDrag(cardEl) {
-  const uid = cardEl.dataset.uid;
-  cardEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inspectCard(S.hand.find((h) => h.uid === uid)); } });
-  cardEl.addEventListener('pointerdown', (e) => {
+// ───────────────────────── drag + detail ─────────────────────────
+function enableDrag(el) {
+  const u = el.dataset.uid;
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showDetail(el.dataset.id, u); } });
+  el.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const sx = e.clientX;
     const sy = e.clientY;
     let ghost = null;
-    let dragging = false;
-    const trail = $('#trail');
+    let drag = false;
+    const road = $('.road-wrap');
+    const inRoad = (ev) => { const r = road.getBoundingClientRect(); return ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom; };
     const move = (ev) => {
-      if (!dragging && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) {
-        dragging = true;
-        ghost = document.createElement('div');
-        ghost.innerHTML = cardEl.outerHTML;
-        ghost = ghost.firstElementChild;
+      if (!drag && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) {
+        drag = true;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = cardHTML(el.dataset.id);
+        ghost = tmp.firstElementChild;
         ghost.classList.add('drag-ghost');
-        ghost.style.transform = '';
         document.body.appendChild(ghost);
-        cardEl.style.opacity = '0.25';
+        el.style.opacity = '.25';
         FX.sound('whoosh');
       }
-      if (dragging) {
-        ghost.style.left = `${ev.clientX - 74}px`;
-        ghost.style.top = `${ev.clientY - 104}px`;
-        const r = trail.getBoundingClientRect();
-        const over = ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom;
-        const target = over ? $$('.node', trail).find((n) => { const nr = n.getBoundingClientRect(); return ev.clientX > nr.left - 12 && ev.clientX < nr.right + 12; }) : null;
-        $$('.node', trail).forEach((n) => n.classList.toggle('drop-ok', n === target));
-        trail.style.outline = over ? '2px dashed var(--gold)' : '';
-      }
+      if (!drag) return;
+      ghost.style.left = `${ev.clientX - 79}px`;
+      ghost.style.top = `${ev.clientY - 110}px`;
+      $$('.space.current').forEach((s) => s.classList.toggle('drop', inRoad(ev)));
     };
     const up = (ev) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (dragging) {
+      if (drag) {
         ghost.remove();
-        cardEl.style.opacity = '';
-        trail.style.outline = '';
-        $$('.node', trail).forEach((n) => n.classList.remove('drop-ok'));
-        const r = trail.getBoundingClientRect();
-        if (ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom) doPlay(uid);
-      } else {
-        const h = S.hand.find((x) => x.uid === uid);
-        if (h) inspectCard(h);
-      }
+        el.style.opacity = '';
+        $$('.space').forEach((s) => s.classList.remove('drop'));
+        if (inRoad(ev)) play(u);
+      } else showDetail(el.dataset.id, u);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   });
 }
 
-function inspectCard(h, fromFolder = false) {
-  const c = CARDS[h.id];
-  const ag = AGENCIES[c.agency] || AGENCIES.LIFE;
-  const credit = IMG[c.img];
-  const tr = S ? S.track : 'h1b';
-  const stepId = S && c.type === 'form' ? E.findStepForCard(S, h.id) : null;
+function showDetail(id, u = null) {
+  const c = CARDS[id];
+  const inHand = u && S?.hand.some((h) => h.uid === u);
+  const stepId = S && c.type === 'form' ? E.stepForCard(S, id) : null;
   const docs = stepId ? E.stepDocs(E.stepDef(stepId)) : c.docs || [];
+  const ph = IMG[c.photo];
   let btns = '';
-  if (!fromFolder && S && S.hand.some((x) => x.uid === h.uid)) {
-    if (c.type === 'form') btns += `<button class="btn primary" id="do-play">📤 File on Paper Trail</button>`;
-    if (c.type === 'action') {
-      const cost = c.cost ? c.cost[tr] ?? 0 : 0;
-      btns += `<button class="btn primary" id="do-play">✨ Use card${cost ? ` (${E.fmtMoney(cost)})` : ''}</button>`;
-    }
-    if (c.type !== 'wait') btns += `<button class="btn danger" id="do-discard">🗑 Discard</button>`;
+  if (inHand) {
+    if (c.type === 'form') btns += '<button class="btn go" id="d-play">Play on road</button>';
+    if (c.type === 'action') btns += '<button class="btn go" id="d-play">Use it</button>';
+    if (c.type !== 'wait') btns += '<button class="btn" id="d-toss">Throw away</button>';
   }
-  const payer = c.fee ? (c.fee.payer === 'you' ? 'You pay' : 'Your employer pays') : '';
-  const { close } = openOverlay(`
+  const who = c.type === 'form' ? (c.payer === 'you' ? 'You' : S?.track === 'h2a' ? 'The farm' : 'Your boss') : null;
+  const { el, shut } = overlay(`
     <button class="icon-btn close-x" data-close aria-label="Close">✕</button>
-    <div>${cardHTML(h.id, { ttl: h.ttl })}</div>
-    <div class="info">
-      <div class="step-label">${TYPE_INFO[c.type].icon} ${TYPE_INFO[c.type].label} · ${c.rarity}</div>
-      <h2>${esc(c.title)}</h2>
-      <div class="sub">${esc(c.sub)} · ${esc(ag.full)}</div>
-      <section><b>What is it?</b><p>${esc(c.what)}</p></section>
-      <section><b>When to use it</b><p>${esc(c.why)}</p></section>
-      ${c.fee ? `<section><b>Cost</b><p>${c.fee.amt ? `${payer} ${E.fmtMoney(Math.round(c.fee.amt * (S ? S.feeMult : 1)))}.` : 'No government fee.'} ${c.time && c.type === 'form' ? `Processing: ${esc(c.time)}.` : ''}</p></section>` : ''}
-      ${docs.length ? `<section><b>Documents needed</b><div class="needs">${docs.map((d) => { const have = S && E.hasDoc(S, d); return `<span class="${have ? 'have' : 'miss'}">${have ? '✓' : '✗'} ${esc(CARDS[d].title)}</span>`; }).join('')}</div></section>` : ''}
-      <section class="fact"><b>💡 Did you know?</b><p>${esc(c.fact)}</p></section>
+    <div>${cardHTML(id, { ttl: S?.hand.find((h) => h.uid === u)?.ttl })}</div>
+    <div>
+      <h2>${esc(c.name)}</h2>
+      ${c.formNo ? `<div class="form-no">${esc(c.formNo)} · ${esc(AGENCIES[c.agency].name)}</div>` : ''}
+      <section><b>What it is</b><p>${esc(c.what)}</p></section>
+      <section><b>Tip</b><p>${esc(c.tip)}</p></section>
+      ${who ? `<section><b>Who pays</b><p>${who} ${c.fee ? `pay${who === 'You' ? '' : 's'} ${E.money$(c.fee)}.` : 'pay nothing to the government for this step.'}</p></section>` : ''}
+      ${docs.length ? `<section><b>Papers needed</b><div class="needs">${docs.map((d) => { const has = S && E.hasDoc(S, d); return `<span class="${has ? 'have' : 'miss'}">${has ? '✓' : '✗'} ${esc(CARDS[d].name)}</span>`; }).join('')}</div></section>` : ''}
+      <section class="fact"><b>Real fact</b><p>${esc(c.fact)}</p></section>
+      ${ph ? `<div class="photo"><img src="${esc(ph.file)}" alt="" loading="lazy"><span>Real photo: ${esc(ph.title?.replace(/^File:/, '') || '')}<br>${esc(ph.author || '')} · ${esc(ph.license || '')} · Wikimedia Commons</span></div>` : ''}
       <div class="row">${btns}<button class="btn" data-close>Close</button></div>
-      ${credit ? `<div class="credit">Photo: ${esc(credit.title || '')} — ${esc(credit.author || '')}, ${esc(credit.license || '')}, via Wikimedia Commons</div>` : ''}
-    </div>`, { cls: 'inspect' });
-  const play = $('#do-play');
-  if (play) play.onclick = () => { close(); doPlay(h.uid); };
-  const disc = $('#do-discard');
-  if (disc) disc.onclick = () => { E.discardCard(S, h.uid); close(); toast(`Discarded ${c.title}.`); save(); renderBoard(); };
+    </div>`, { cls: 'detail' });
+  if ($('#d-play', el)) $('#d-play', el).onclick = () => { shut(); play(u); };
+  if ($('#d-toss', el)) $('#d-toss', el).onclick = () => { E.discard(S, u); shut(); toast(`Threw away ${c.name}.`); save(); renderBoard(); };
 }
 
-async function doPlay(uid) {
-  const h = S.hand.find((x) => x.uid === uid);
+async function play(u) {
+  const h = S.hand.find((x) => x.uid === u);
   if (!h) return;
   const c = CARDS[h.id];
-  if (c.type === 'wait') { toast('Wait cards can’t be played. They leave on their own.', 'bad'); return; }
-  if (!['form', 'action'].includes(c.type)) { toast('Only forms and action cards can be played.', 'bad'); return; }
-  if (c.effect?.kind === 'canada' && !(await confirmBox('Move to Canada?', 'Moving to Canada ends your U.S. journey. You give up your place in the green card line.', 'Move to Canada'))) return;
-  const res = E.playCard(S, uid);
-  if (res.kind === 'info' || (!res.ok && !res.stamp && res.kind !== 'shield')) {
-    toast(`${res.title ? res.title + ': ' : ''}${res.text}`, res.ok ? 'good' : '');
-    save();
-    renderBoard();
-    return;
-  }
-  logJ(res.kind === 'rejected' ? '❌' : res.kind === 'rfe' ? '📨' : res.kind === 'shield' ? '🛡️' : '📄', `${res.title}: ${res.text}`, res.kind === 'rejected' ? 'bad' : res.kind === 'rfe' ? 'warn' : 'good');
+  if (c.type === 'wait') { toast('Wait cards are stuck. They leave on their own.'); return; }
+  if (!['form', 'action'].includes(c.type)) { toast('Only forms and help cards can be played.'); return; }
+  const res = E.playCard(S, u);
   save();
+  if (res.kind === 'info') { toast(`${res.title ? res.title + ': ' : ''}${res.text}`); renderBoard(); return; }
+  log({ rejected: '❌', missing: '📎', saved: '🛡️', help: '🧭' }[res.kind] || '📄', `${res.title} ${res.text}`);
   renderBoard();
-  const node = res.stamp && $(`.node.approved, .node.pending`);
-  if (res.stamp) FX.stamp(res.stamp);
-  if (res.kind === 'approved' || res.kind === 'filed') FX.burstAt($('#trail'), { count: 30 });
-  void node;
-  await wait(res.stamp ? 900 : 0);
-  await resultModal(res);
+  if (res.stamp) { FX.stamp(res.stamp); await wait(1000); }
+  await resultSheet(res);
   if (S.over) return finishGame();
-  maybeCoach();
+  coachNext();
 }
 
-// ───────────────────────── YEAR FLOW ─────────────────────────
-function beginYear() {
-  const report = E.startYear(S);
-  for (const l of report.lines) logJ(l.icon, l.text, l.tone);
+function showPapers() {
+  overlay(`<button class="icon-btn close-x" data-close aria-label="Close">✕</button><h2>Your papers</h2><p>Papers stay here and are used again and again. Forms that need them check here.</p>
+    <div class="discard-row">${S.folder.map((f) => cardHTML(f.id)).join('') || '<p>No papers yet.</p>'}</div>`, { cls: 'recap' });
+  $$('.overlay .discard-row .card').forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
+}
+function showLog() {
+  overlay(`<button class="icon-btn close-x" data-close aria-label="Close">✕</button><h2>What happened</h2>
+    <ul class="log-list">${[...S.history].reverse().map((h) => `<li><span class="y">${h.year}</span><span>${h.icon}</span><span>${esc(h.text)}</span></li>`).join('') || '<li>Nothing yet.</li>'}</ul>`, { cls: 'recap' });
+}
+function showMenu() {
+  const { el, shut } = overlay(`<h2>Menu</h2><p>Table <b>${esc(S.code)}</b> · ${esc(S.scenario.name)}</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+      <button class="btn" id="m-how">How to play</button>
+      <a class="btn" href="teacher.html" target="_blank" rel="noopener">Teacher guide</a>
+      <button class="btn" id="m-quit">Quit to title (saved)</button>
+      <button class="btn go" data-close>Back to game</button>
+    </div>`, { cls: 'result-sheet' });
+  $('#m-how', el).onclick = () => { shut(); showHow(); };
+  $('#m-quit', el).onclick = () => { shut(); renderTitle(); };
+}
+function showHow() {
+  overlay(`<button class="icon-btn close-x" data-close aria-label="Close">✕</button><h2>How to play</h2>
+    <ol style="font-size:18px;line-height:1.5;padding-left:22px">
+      <li><b>Open your pack.</b> Money and bills count right away. Papers go to your pile. Forms and help cards go to your hand.</li>
+      <li><b>Play forms on your road.</b> Drag a form onto the road, or click it and press Play. The glowing space shows what's next.</li>
+      <li><b>Too early = rejected.</b> You lose the fee, and a Rejected card gets stuck in your hand.</li>
+      <li><b>Wait cards</b> can't be played or thrown away. They leave after a turn or two.</li>
+      <li><b>Finish your turn,</b> make one choice, then compare with your partner.</li>
+    </ol>
+    <div class="row"><button class="btn go" data-close>Got it</button></div>`, { cls: 'recap' });
+}
+
+// ───────────────────────── TURN FLOW ─────────────────────────
+const APPS = {
+  news: { name: 'News', icon: '📰', bg: '#ffd84a' }, family: { name: 'Messages', icon: '💬', bg: '#9be3b8' },
+  uscis: { name: 'USCIS Case Status', icon: '🏛', bg: '#a9d4ff' }, dol: { name: 'Dept. of Labor', icon: '🏛', bg: '#a9d4ff' },
+  state: { name: 'State Dept.', icon: '🏛', bg: '#a9d4ff' }, farm: { name: 'Farm Crew Chat', icon: '🌾', bg: '#ffc08f' },
+};
+function beginTurn() {
+  const rep = E.startTurn(S);
   save();
   renderBoard();
-  showNews(report);
+  showTurnStart(rep);
 }
-
-function showNews(report) {
-  const n = report.news;
-  const body = n.body.all || n.body[S.track];
-  const stampAfter = S.lastStamp;
-  S.lastStamp = null;
-  save();
-  const { el, close } = openOverlay(`
-    <div class="cal-flip">
-      <div class="cal-page"><div class="top">YEAR ${S.year} OF ${E.MAX_YEARS}</div><div class="yr">${E.yearLabel(S)}</div></div>
-      <div><div class="step-label">${esc(CHARACTERS[S.charId].name)} · Table ${esc(S.code)}</div><h2>A new year begins</h2></div>
-    </div>
-    <div class="newspaper">
-      <div class="mast"><span>THE DAILY DOCKET</span><span>SCENARIO NEWS · ${E.yearLabel(S)}</span></div>
-      <h3>${n.icon} ${esc(n.headline)}</h3>
-      <p>${esc(body)}</p>
-    </div>
-    ${report.lines.length ? `<div class="news-lines">${report.lines.map((l, i) => `<div class="jl ${l.tone}" style="animation-delay:${0.4 + i * 0.35}s"><span>${l.icon} ${esc(l.text)}</span></div>`).join('')}</div>` : ''}
-    <div class="row"><button class="btn primary big" id="news-go">${S.pendingChoice ? 'Continue →' : `Open your ${E.yearLabel(S)} pack →`}</button></div>`, { cls: 'news', dismiss: false });
-  if (stampAfter) setTimeout(() => FX.stamp(stampAfter), 500 + report.lines.length * 350);
-  $('#news-go', el).onclick = async () => {
-    close();
-    if (S.pendingChoice) await showChoice();
-    if (S.over) return finishGame();
-    renderBoard();
+function flapsHTML(text) {
+  return `<div class="flaps">${[...text].map((ch) => (ch === ' ' ? '<span class="flap gap"></span>' : `<span class="flap">${ch}</span>`)).join('')}</div>`;
+}
+function signHTML(sign) {
+  const est = sign.estimate;
+  const verdict = sign.current
+    ? '<b>Your number was called!</b> You can apply for your green card now.'
+    : `The line is serving people who got in line in <b>${Math.floor(sign.after)}</b>. Your ticket is <b>${Math.floor(sign.pd)}</b>. At this speed: about <b>${est} more turn${est === 1 ? '' : 's'}</b>${est > 8 ? ' — longer than this whole game' : ''}.`;
+  return `<div class="sign"><span class="hd">NOW SERVING</span><div class="line">Green card line · ${esc(sign.label)}</div>
+    <div id="flaps">${flapsHTML(E.fmtDate(sign.before))}</div>
+    <div class="ticket"><div class="stub"><small>YOUR TICKET</small>${E.fmtDate(sign.pd)}</div><div class="verdict">${verdict}</div></div></div>`;
+}
+function runFlaps(from, to) {
+  const box = $('#flaps');
+  if (!box) return;
+  const target = E.fmtDate(to);
+  const steps = 10;
+  let i = 0;
+  const tick = () => {
+    i++;
+    const v = from + ((to - from) * i) / steps;
+    box.innerHTML = flapsHTML(i >= steps ? target : E.fmtDate(v));
+    $$('.flap', box).forEach((f) => f.classList.add('flip'));
+    FX.sound('click');
+    if (i < steps) setTimeout(tick, 110);
+  };
+  setTimeout(tick, 900);
+}
+function showTurnStart(rep) {
+  const year = E.yearOf(S);
+  const ch = CHARACTERS[S.charId];
+  const notes = rep.notes.map((n, i) => {
+    const a = APPS[n.app] || APPS.news;
+    const from = n.app === 'family' ? n.from : a.name;
+    return `<div class="note ${n.tone || ''}" style="animation-delay:${0.25 + i * 0.45}s"><div class="app"><i style="background:${a.bg}">${a.icon}</i>${esc(from)}</div>${esc(n.text)}</div>`;
+  }).join('');
+  const { el, shut } = overlay(`
+    <div class="turn-start">
+      <div class="phone"><div class="phone-screen">
+        <div class="clock">7:${String(10 + S.turn * 6).padStart(2, '0')}</div><div class="date">Turn ${S.turn} · ${year}</div>
+        ${notes}
+      </div></div>
+      <div class="turn-side">
+        <h2><small>Turn ${S.turn} of ${E.TURNS}</small>${year}</h2>
+        ${rep.sign ? signHTML(rep.sign) : `<p style="font-size:19px;max-width:34ch">${esc(ch.name)}'s phone is buzzing. Read your messages, then open your pack.</p>`}
+        <button class="btn go big" id="ts-go">${S.dilemma ? 'Continue' : 'Open pack'}</button>
+      </div>
+    </div>`, { bare: true, close: false });
+  if (rep.sign) runFlaps(rep.sign.before, rep.sign.after);
+  if (rep.stamp) setTimeout(() => FX.stamp(rep.stamp), rep.sign ? 2400 : 600 + rep.notes.length * 450);
+  $('#ts-go', el).onclick = async () => {
+    shut();
+    if (rep.stamp === 'GREEN CARD') await showReward();
+    if (S.dilemma) { await showDilemma(); if (S.over) return finishGame(); renderBoard(); }
     openPack();
   };
 }
 
-function showChoice() {
+function showReward() {
   return new Promise((resolve) => {
-    const info = E.choiceInfo(S);
-    if (!info) { S.pendingChoice = null; resolve(); return; }
-    const { el, close } = openOverlay(`
-      <div class="big-icon" style="font-size:48px">${info.icon}</div>
-      <h2>${esc(info.title)}</h2>
-      <p style="font-size:16px">${esc(info.text)}</p>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
-        ${info.options.map((o, i) => `<button class="btn ${i === 0 ? 'primary' : ''} big" data-k="${o.key}">${esc(o.label)}</button>`).join('')}
-      </div>`, { cls: 'result-modal', dismiss: false });
-    $$('[data-k]', el).forEach((b) => b.onclick = async () => {
-      const r = E.resolveChoice(S, b.dataset.k);
-      close();
-      if (r) { logJ(info.icon, `${r.title}: ${r.text}`, 'warn'); save(); await resultModal({ kind: 'action', ...r }); }
-      save();
-      resolve();
-    });
+    const { el, shut } = overlay(`<div class="stage-title" style="text-align:center">You earned the rarest card</div>
+      <div style="display:grid;place-items:center;margin:18px 0">${cardHTML('green-card', { cls: 'reward' })}</div>
+      <p style="text-align:center;font-size:19px;max-width:44ch;margin:0 auto 18px">A green card means you can live and work in the U.S. for good. In 5 years you can apply to become a citizen.</p>
+      <div style="text-align:center"><button class="btn go big" id="rw">Keep going</button></div>`, { bare: true, close: false, onClose: resolve });
+    FX.sound('legendary');
+    FX.confettiRain();
+    $('#rw', el).onclick = shut;
   });
 }
 
-// ───────────────────────── PACK OPENING ─────────────────────────
 function openPack() {
   if (S.packOpened || S.over) return;
   const ch = CHARACTERS[S.charId];
   const stage = document.createElement('div');
   stage.className = 'pack-stage';
   stage.innerHTML = `
-    <div class="pack-title">${E.yearLabel(S)} Pack</div>
-    <div class="pack-sub">Drag across the top edge to tear it open</div>
-    <div class="pack" style="--pc1:${ch.color};--pc2:#111827" tabindex="0" aria-label="Card pack. Press Enter to tear open.">
-      <div class="tear-hint">✂ drag this way →</div>
-      <div class="p-top"><div class="crimp"></div><div class="foil"></div></div>
-      <div class="tear-line"></div><div class="tear-prog"></div>
-      <div class="p-body"><div class="foil"></div>
-        <img class="p-flag" src="${flagSrc(ch.flag)}" alt="" onerror="this.remove()">
-        <div class="p-seal">🗂️</div>
-        <div class="p-logo">PAPER TRAIL</div>
-        <div class="p-year">YEAR ${S.year} · ${E.PACK_SIZE} CARDS</div>
+    <div class="stage-title">Turn ${S.turn} pack</div>
+    <div class="stage-sub">Grab the top edge and drag right to tear it open</div>
+    <div class="pack" style="--pc:${ch.color}" tabindex="0" aria-label="Card pack. Press Enter to open.">
+      <div class="cut-hint">✂ tear here →</div>
+      <div class="p-top"><div class="halftone"></div><div class="crimp"></div><div class="sheen"></div></div>
+      <div class="cut"></div><div class="cut-prog"></div>
+      <div class="p-body"><div class="halftone"></div><div class="sheen"></div>
+        <div class="p-ava">${portrait(S.charId)}</div>
+        <div class="logo">Paper<br>Trail</div>
+        <div class="p-info">${E.yearOf(S)} · ${E.PACK_SIZE - (S.flags.smallPack ? 1 : 0)} CARDS</div>
         <div class="crimp"></div>
       </div>
     </div>
-    <div class="pack-controls"><button class="btn" id="tear-btn">✂ Tear open</button></div>`;
+    <div class="stage-controls"><button class="btn" id="tear">Tear open</button></div>`;
   document.body.appendChild(stage);
   const pack = $('.pack', stage);
-  const prog = $('.tear-prog', stage);
+  const prog = $('.cut-prog', stage);
   let tearing = false;
   let p = 0;
   let done = false;
@@ -702,384 +619,251 @@ function openPack() {
     const r = pack.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width;
     const y = (e.clientY - r.top) / r.height;
-    if (!tearing) pack.style.transform = `rotateY(${(x - 0.5) * 18}deg) rotateX(${(0.5 - y) * 14}deg)`;
-    $$('.foil', pack).forEach((f) => f.style.setProperty('--fx', `${x * 100}%`));
-    if (tearing) {
-      p = Math.max(p, Math.min(1, x));
-      prog.style.width = `${p * 100}%`;
-      if (p > 0.9) tear();
-    }
+    if (!tearing) pack.style.transform = `perspective(900px) rotateY(${(x - 0.5) * 16}deg) rotateX(${(0.5 - y) * 12}deg)`;
+    $$('.sheen', pack).forEach((f) => f.style.setProperty('--fx', `${x * 100}%`));
+    if (tearing) { p = Math.max(p, Math.min(1, x)); prog.style.width = `${p * 100}%`; if (p > 0.88) tear(); }
   });
   pack.addEventListener('pointerleave', () => { if (!tearing) pack.style.transform = ''; });
   pack.addEventListener('pointerdown', (e) => {
     const r = pack.getBoundingClientRect();
-    if ((e.clientY - r.top) / r.height < 0.34) {
-      tearing = true;
-      pack.setPointerCapture(e.pointerId);
-      FX.sound('tear');
-    } else {
-      pack.classList.remove('shake');
-      void pack.offsetWidth;
-      pack.classList.add('shake');
-      $('.pack-sub', stage).textContent = 'Grab the TOP edge and drag to the right →';
-    }
+    if ((e.clientY - r.top) / r.height < 0.36) { tearing = true; pack.setPointerCapture(e.pointerId); FX.sound('tear'); }
+    else { pack.classList.remove('shake'); void pack.offsetWidth; pack.classList.add('shake'); $('.stage-sub', stage).textContent = 'Grab the TOP edge, then drag right →'; }
   });
   pack.addEventListener('pointerup', () => { tearing = false; if (!done) { p = 0; prog.style.width = '0'; } });
   pack.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') tear(); });
-  $('#tear-btn', stage).onclick = tear;
+  $('#tear', stage).onclick = tear;
 
   function tear() {
     if (done) return;
     done = true;
-    tearing = false;
     prog.style.width = '100%';
     FX.sound('tear');
     const r = pack.getBoundingClientRect();
-    FX.burst(r.left + r.width / 2, r.top + r.height * 0.16, { colors: ['#fff', '#f5c451', ch.color], count: 50, power: 9, shape: 'spark' });
+    FX.burst(r.left + r.width / 2, r.top + r.height * 0.17, { colors: ['#ffd84a', '#f6f0e2', ch.hex], count: 50, power: 9, shape: 'spark' });
     pack.classList.add('torn');
-    $('.tear-hint', stage)?.remove();
-    // Apply the pack right away (so a refresh can't re-roll it), then animate the reveal.
+    $('.cut-hint', stage)?.remove();
     const cards = E.makePack(S);
     const results = cards.map((c) => E.collectCard(S, c));
     S.packOpened = true;
     S.phase = 'play';
-    for (let i = 0; i < cards.length; i++) {
-      const cd = CARDS[cards[i].id];
-      logJ(TYPE_INFO[cd.type].icon, `Pack: ${cd.title}${results[i].text && cd.type !== 'form' && cd.type !== 'action' ? ` (${results[i].text})` : ''}`, results[i].tone === 'bad' ? 'bad' : 'info');
-    }
     save();
     setTimeout(() => deal(cards, results), 650);
   }
-
   function deal(cards, results) {
     stage.innerHTML = `
-      <div class="pack-title">${E.yearLabel(S)} Pack</div>
-      <div class="pack-sub">Click each card to flip it</div>
-      <div class="reveal-row">${cards.map((c, i) => `<div class="slot">${cardHTML(c.id, { down: true, uid: c.uid, cls: `deal-${i}` })}<div class="result-tag ${results[i].tone}">${esc(results[i].text)}</div></div>`).join('')}</div>
-      <div class="pack-controls"><button class="btn" id="reveal-all">Flip all</button><button class="btn primary big hidden" id="collect">Add to hand →</button></div>`;
-    $$('.reveal-row .card', stage).forEach((el, i) => {
-      el.style.animationDelay = `${i * 0.09}s`;
-      el.onclick = () => flip(el, i);
-      el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(el, i); } };
-    });
+      <div class="stage-title">Turn ${S.turn} pack</div>
+      <div class="stage-sub">Click each card to flip it</div>
+      <div class="reveal-row">${cards.map((c, i) => `<div class="slot2">${cardHTML(c.id, { down: true, hot: ['rare', 'legendary'].includes(CARDS[c.id].rarity) })}<div class="result ${results[i].tone}">${esc(results[i].text)}</div></div>`).join('')}</div>
+      <div class="stage-controls"><button class="btn" id="all">Flip all</button><button class="btn go big hidden" id="take">Take cards</button></div>`;
+    const els = $$('.reveal-row .card', stage);
+    els.forEach((el, i) => { el.style.animationDelay = `${i * 0.09}s`; el.onclick = () => flip(el, i); });
     FX.sound('whoosh');
     let flipped = 0;
     function flip(el, i) {
-      if (!el.classList.contains('down')) return inspectCard({ id: cards[i].id }, true);
-      el.classList.remove('down', 'glow-rare');
-      const cd = CARDS[cards[i].id];
+      if (!el.classList.contains('down')) return showDetail(cards[i].id);
+      el.classList.remove('down', 'hot');
+      const c = CARDS[cards[i].id];
       FX.sound('flip');
       setTimeout(() => {
-        if (cd.rarity === 'legendary') { FX.sound('legendary'); FX.burstAt(el, { colors: ['#f0abfc', '#67e8f9', '#fde047', '#fff'], count: 70, power: 10 }); }
-        else if (cd.rarity === 'rare') { FX.sound('rare'); FX.burstAt(el, { colors: ['#f5c451', '#fff', '#fde68a'], count: 45, power: 8 }); }
-        else if (cd.type === 'money') { FX.sound('coin'); FX.burstAt(el, { colors: ['#86efac', '#fff'], count: 20, power: 5, shape: 'spark' }); }
-        else if (cd.type === 'wait' || cd.type === 'expense') FX.sound('bad');
-        el.parentElement.querySelector('.result-tag').classList.add('show');
-      }, 320);
-      flipped++;
-      if (flipped === cards.length) {
-        $('#reveal-all', stage).classList.add('hidden');
-        $('#collect', stage).classList.remove('hidden');
-        $('.pack-sub', stage).textContent = 'Click a card to read about it — or add them to your hand.';
+        if (c.rarity === 'rare') { FX.sound('rare'); FX.burstAt(el, { colors: ['#ffd84a', '#f6f0e2', '#ff5fa2'], count: 44, power: 8 }); }
+        else if (c.type === 'money') { FX.sound('coin'); FX.burstAt(el, { colors: ['#1fa463', '#ffd84a'], count: 18, power: 5, shape: 'spark' }); }
+        else if (c.type === 'wait' || c.type === 'bill') FX.sound('bad');
+        el.parentElement.querySelector('.result').classList.add('show');
+      }, 300);
+      if (++flipped === cards.length) {
+        $('#all', stage).classList.add('hidden');
+        $('#take', stage).classList.remove('hidden');
+        $('.stage-sub', stage).textContent = 'Click a card to read it, or take them all.';
       }
     }
-    $('#reveal-all', stage).onclick = async () => {
-      const els = $$('.reveal-row .card', stage);
-      for (let i = 0; i < els.length; i++) if (els[i].classList.contains('down')) { flip(els[i], i); await wait(260); }
-    };
-    $('#collect', stage).onclick = async () => {
+    $('#all', stage).onclick = async () => { for (let i = 0; i < els.length; i++) if (els[i].classList.contains('down')) { flip(els[i], i); await wait(240); } };
+    $('#take', stage).onclick = () => {
       stage.remove();
-      if (S.pendingChoice) await showChoice();
-      const settled = E.settleInstant(S);
-      for (const l of settled.lines) logJ(l.icon, l.text, l.tone);
+      const st = E.settle(S);
       save();
       renderBoard();
-      if (settled.stamp) FX.stamp(settled.stamp);
-      if (S.over) return finishGame();
-      maybeCoach();
+      if (st.stamp) FX.stamp(st.stamp);
+      coachNext();
     };
   }
 }
 
-// ───────────────────────── COACH (first year tips) ─────────────────────────
-function coach(key, sel, text, place = 'above') {
-  if (!S || S.year > 2 || (S.tips && S.tips[key])) return;
-  S.tips = S.tips || {};
-  const target = $(sel);
-  if (!target) return;
+async function finishTurn() {
   $$('.coach').forEach((c) => c.remove());
-  const r = target.getBoundingClientRect();
+  const d = E.pickDilemma(S);
+  save();
+  if (d) await showDilemma();
+  if (S.over) return finishGame();
+  const lines = E.endTurn(S);
+  S.lastLines = lines;
+  save();
+  renderBoard();
+  showRecap();
+}
+
+function showDilemma() {
+  return new Promise((resolve) => {
+    const d = DILEMMAS.find((x) => x.id === S.dilemma);
+    if (!d) { resolve(); return; }
+    const { el, shut } = overlay(`
+      <div class="choice-top">
+        <div class="choice-art">${art(d.art, 'action', d.legendary ? '#ffd84a' : '#c3b1ff')}</div>
+        <div><span class="kicker">${d.legendary ? '★ Rare chance' : `Turn ${S.turn} · your choice`}</span><h2>${esc(d.title)}</h2><p>${esc(d.text)}</p></div>
+      </div>
+      <div class="options">${d.options.map((o) => `<button class="option" data-k="${o.key}"><b>${esc(o.label)}</b><span>${esc(o.hint)}</span></button>`).join('')}</div>`, { cls: 'choice', close: false });
+    $$('[data-k]', el).forEach((b) => (b.onclick = async () => {
+      const r = E.resolveDilemma(S, b.dataset.k);
+      shut();
+      save();
+      FX.sound('stamp');
+      await resultSheet({ kind: 'help', title: r.title, text: r.text });
+      renderBoard();
+      resolve();
+    }));
+  });
+}
+
+function showRecap() {
+  const final = S.over || S.turn >= E.TURNS;
+  const year = E.yearOf(S);
+  const { el, shut } = overlay(`
+    <h2>End of ${year}</h2>
+    <div class="ledger">${(S.lastLines || []).map((l) => `<div><span>${l.icon} ${esc(l.text)}</span>${l.amt ? `<span class="amt ${l.amt > 0 ? 'plus' : 'minus'}">${l.amt > 0 ? '+' : '−'}${E.money$(Math.abs(l.amt))}</span>` : ''}</div>`).join('')}</div>
+    <div id="rc"></div>`, { cls: 'recap', close: false });
+  const body = $('#rc', el);
+  const stepDiscard = () => {
+    const n = E.handOver(S);
+    if (n > 0 && E.discardable(S).length && !final) {
+      body.innerHTML = `<h3 style="font-size:26px">Hand too full! Throw away ${n}.</h3><p style="margin:4px 0">You can hold ${E.HAND_LIMIT} cards. Stuck cards can't be thrown away.</p>
+        <div class="discard-row">${S.hand.map((h) => cardHTML(h.id, { uid: h.uid, ttl: h.ttl, cls: CARDS[h.id].type === 'wait' ? 'stuck' : '' })).join('')}</div>`;
+      $$('.discard-row .card', body).forEach((c) => (c.onclick = () => {
+        if (!E.discard(S, c.dataset.uid)) { toast('That card is stuck. It leaves on its own.'); return; }
+        FX.sound('whoosh');
+        save();
+        stepDiscard();
+      }));
+      return;
+    }
+    stepPartner();
+  };
+  const stepPartner = () => {
+    S.phase = 'recap';
+    save();
+    body.innerHTML = `
+      <div class="partner"><b>Partner check</b><ul>
+        <li>Wait for your partner to reach this screen.</li>
+        <li>Tell each other your <b>status</b> (${E.LADDER[E.ladder(S)]}) and your <b>money</b> (${E.money$(S.money)}).</li>
+        <li>Who's ahead? Why: choices, luck, money, or the rules?</li></ul></div>
+      <div class="row"><button class="btn go big" id="next">${final ? 'See results' : `Start ${E.TURN_YEARS[S.turn]}`} →</button></div>`;
+    $('#next', body).onclick = () => { shut(); if (E.nextTurn(S)) beginTurn(); else finishGame(); };
+  };
+  if (S.phase === 'recap') stepPartner(); else stepDiscard();
+}
+
+// ───────────────────────── COACH (turn 1) ─────────────────────────
+function coach(key, sel, text, where = 'above') {
+  if (!S || S.turn > 1 || S.tips?.[key]) return false;
+  const t = $(sel);
+  if (!t) return false;
+  $$('.coach').forEach((c) => c.remove());
+  const r = t.getBoundingClientRect();
   const tip = document.createElement('div');
   tip.className = 'coach';
   tip.innerHTML = `${esc(text)}<br><button>Got it</button>`;
   document.body.appendChild(tip);
   const tr = tip.getBoundingClientRect();
-  let top = place === 'above' ? r.top - tr.height - 10 : r.bottom + 10;
-  let left = Math.min(innerWidth - tr.width - 10, Math.max(10, r.left + r.width / 2 - tr.width / 2));
-  if (place === 'left') { top = r.top + r.height / 2 - tr.height / 2; left = r.left - tr.width - 12; }
+  let top = where === 'above' ? r.top - tr.height - 12 : r.bottom + 12;
+  let left = r.left + r.width / 2 - tr.width / 2;
+  if (where === 'left') { top = r.top + r.height / 2 - tr.height / 2; left = r.left - tr.width - 14; }
   tip.style.top = `${Math.max(10, top)}px`;
-  tip.style.left = `${Math.max(10, left)}px`;
-  $('button', tip).onclick = () => { S.tips[key] = true; tip.remove(); save(); maybeCoach(); };
+  tip.style.left = `${Math.max(10, Math.min(innerWidth - tr.width - 10, left))}px`;
+  $('button', tip).onclick = () => { S.tips[key] = true; tip.remove(); save(); coachNext(); };
+  return true;
 }
-function maybeCoach() {
-  if (!S || S.year > 1) return;
-  if (!S.tips) S.tips = {};
-  if (!S.tips.hand && S.hand.length) return coach('hand', '#hand', 'This is your hand. Click a card to read it, then drag a form onto your Paper Trail (or use the “File” button).');
-  if (!S.tips.trail) return coach('trail', '#trail .node', 'Your Paper Trail. Hidden steps show “? ? ?” — the agency and who files it are clues. Filing out of order gets REJECTED!', 'below');
-  if (!S.tips.end) return coach('end', '#end-year', 'Done filing? End the year. Unused cards stay in your hand (limit 7).', 'left');
-}
-
-// ───────────────────────── END OF YEAR ─────────────────────────
-function doEndYear() {
-  $$('.coach').forEach((c) => c.remove());
-  const res = E.endYear(S);
-  S.lastEnd = res.lines;
-  S.phase = 'end';
-  for (const l of res.lines) logJ(l.icon, l.text, l.tone);
-  save();
-  renderBoard();
-  showYearEnd();
+function coachNext() {
+  if (!S || S.turn > 1) return;
+  S.tips ||= {};
+  if (!S.tips.hand && S.hand.length && coach('hand', '#hand', 'Your hand. Click a card to read it. Drag a form up onto your road to play it.')) return;
+  if (!S.tips.road && coach('road', '.space.current', 'The glowing space is your next step. Hidden steps come later. Play them too early and they get rejected!', 'below')) return;
+  if (!S.tips.finish) coach('finish', '#finish', 'Done? Finish your turn. You\'ll make one choice, then compare with your partner.', 'above');
 }
 
-function showYearEnd() {
-  const lines = S.lastEnd || [];
-  const year = E.yearLabel(S);
-  const final = S.over || S.year >= E.MAX_YEARS;
-  const { el, close } = openOverlay(`
-    <div class="step-label">Year ${S.year} of ${E.MAX_YEARS}</div>
-    <h2>End of ${year}</h2>
-    <div class="ledger">${lines.map((l) => `<div class="jl ${l.tone}"><span>${l.icon} ${esc(l.text)}</span></div>`).join('')}</div>
-    <div id="ye-body"></div>`, { cls: 'yearend', dismiss: false });
-  const body = $('#ye-body', el);
-  const stepDiscard = () => {
-    const over = E.handExcess(S);
-    const canDiscard = E.discardable(S);
-    if (over > 0 && canDiscard.length && !final) {
-      body.innerHTML = `<h3 style="margin-top:10px">✋ Too many cards! Discard ${over}.</h3><p class="muted">Your hand limit is ${E.HAND_LIMIT}. Wait cards can’t be discarded — they take up space until they expire.</p>
-        <div class="discard-row">${S.hand.map((h) => cardHTML(h.id, { uid: h.uid, ttl: h.ttl, cls: CARDS[h.id].type === 'wait' ? 'wait' : '' })).join('')}</div>`;
-      $$('.discard-row .card', body).forEach((c) => c.onclick = () => {
-        if (CARDS[c.dataset.id].type === 'wait') { toast('Wait cards can’t be discarded.', 'bad'); return; }
-        E.discardCard(S, c.dataset.uid);
-        FX.sound('whoosh');
-        save();
-        stepDiscard();
-      });
-      return;
-    }
-    stepDraft();
-  };
-  const stepDraft = () => {
-    if (final) {
-      body.innerHTML = `<div class="row"><button class="btn primary big" id="finish">See your results →</button></div>`;
-      $('#finish', body).onclick = () => { close(); E.nextYear(S); save(); finishGame(); };
-      return;
-    }
-    if (S.phase === 'sync') return stepSync();
-    const opts = E.draftOptions(S);
-    save();
-    body.innerHTML = `<h3 style="margin-top:14px">🎁 Choose 1 card to take into next year</h3>
-      <div class="draft-row">${opts.map((id) => `<div class="draft-slot">${cardHTML(id)}<button class="link-btn" data-info="${id}">ⓘ Read more</button></div>`).join('')}</div>
-      <p class="muted" style="text-align:center;font-size:13px">Click the card you want to keep.</p>`;
-    $$('[data-info]', body).forEach((b) => b.onclick = () => inspectCard({ id: b.dataset.info }, true));
-    $$('.draft-row .card', body).forEach((c) => c.onclick = () => {
-      const r = E.takeDraft(S, c.dataset.id);
-      FX.burstAt(c, { count: 30 });
-      FX.sound(CARDS[c.dataset.id].rarity === 'legendary' ? 'legendary' : 'rare');
-      logJ('🎁', `Chose ${CARDS[c.dataset.id].title}${r && r.text && CARDS[c.dataset.id].type === 'money' ? ` (${r.text})` : ''}`, 'good');
-      if (r && r.fixed) { const st = E.settleInstant(S); for (const l of st.lines) logJ(l.icon, l.text, l.tone); if (st.stamp) FX.stamp(st.stamp); }
-      save();
-      stepSync();
-    });
-  };
-  const stepSync = () => {
-    S.phase = 'sync';
-    save();
-    const sec = E.security(S);
-    const pr = E.progress(S);
-    body.innerHTML = `
-      <div class="sync-box">
-        <div class="sync-card"><h4>Your snapshot · ${year}</h4>
-          <div class="sync-big">${E.SECURITY_LABELS[sec]}</div>
-          <div class="pips" style="margin:6px 0 10px">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= sec ? 'on' : ''}"></i>`).join('')}</div>
-          <div>💵 ${S.track === 'h2a' ? 'Family savings' : 'Savings'}: <b>${E.fmtMoney(S.money)}</b></div>
-          <div>🧾 Steps done: <b>${pr.done} / ${pr.total}</b>${S.track === 'h2a' ? ` · Seasons worked: <b>${S.seasons}</b>` : ''}</div>
-          <div>❌ Rejections: <b>${S.stats.rejections}</b> · ⏳ Wait cards: <b>${S.stats.waitCards}</b></div>
-        </div>
-        <div class="sync-card"><h4>🤝 Partner check</h4>
-          <ul class="partner-q">
-            <li>Wait until your partner reaches this screen too.</li>
-            <li>Tell each other your <b>security level</b> and <b>money</b>.</li>
-            <li>Who is ahead right now? <b>Why?</b> Was it choices, luck, money — or the rules?</li>
-          </ul>
-        </div>
-      </div>
-      <div class="row"><button class="btn primary big" id="next-year">Start ${year + 1} →</button></div>`;
-    $('#next-year', body).onclick = () => {
-      close();
-      if (E.nextYear(S)) beginYear();
-      else finishGame();
-    };
-  };
-  if (S.phase === 'sync') stepSync();
-  else stepDiscard();
-}
-
-// ───────────────────────── END SCREEN ─────────────────────────
+// ───────────────────────── END ─────────────────────────
 const REAL = {
   priya: [
-    'In September 2026, the EB-2 green card line for India was “unavailable.” Its last cutoff was July 15, 2014 — people who got in line in 2014 were still waiting.',
-    'A 2026 study (NFAP) projected that an Indian professional filing in 2026 could face a 179-year EB-2 wait. It’s a math projection — people leave the line and laws change — but the backlog is real.',
-    'About 1 million Indians were waiting in employment-based green card lines at the end of 2025 — around 79% of the entire backlog.',
-    'No country can get more than 7% of green cards in a year (about 25,620). India, with over 1.4 billion people, has the same limit as Iceland.',
+    'In September 2026, the green card line for skilled workers from India was stuck at July 2014. People who got in line in 2014 were still waiting.',
+    'A 2026 study estimated an Indian engineer who gets in line today could wait over 100 years. That\'s just math, since laws and people change, but the line is real.',
+    'No country can get more than 7% of green cards a year. India has 1.4 billion people and the same limit as Iceland.',
   ],
   lukas: [
-    'In 2026, the EB-2 line for Germany and most other countries was “Current” — no waiting for a visa number. The main delay was paperwork, like about 2 years for PERM.',
-    'Lukas and Priya filed the same forms with the same employer. The main difference was the country where they were born.',
-    'No country can get more than 7% of green cards in a year. Countries that send few applicants, like Germany, rarely hit that limit.',
-    'Even “fast” employment green cards usually take 2–4 years after the H-1B, because PERM, the I-140 and the I-485 each take months.',
+    'In 2026, the line for Germany and most countries had no wait at all. The slow part was the paperwork, about 2 years for "Prove No American Applied."',
+    'Lukas and Priya had the same job, the same forms and the same boss. The big difference was where they were born.',
+    'After 5 years with a green card, Lukas could apply to become a U.S. citizen by passing a civics test.',
   ],
   marco: [
-    'In 2025 the Department of Labor approved a record 398,258 H-2A jobs. About 9 out of 10 H-2A visas go to workers from Mexico.',
-    'An average H-2A job lasts about 6 months. Workers can stay up to 3 years in a row, then must leave for at least 60 days.',
-    'H-2A does not lead to a green card. Only a permanent, year-round job can be sponsored (EB-3 “other workers”), which is capped at 10,000 visas a year worldwide.',
-    'A 2025 rule lowered minimum H-2A wages in most states. In August 2026 a federal court called that rule unlawful and ordered the Labor Department to redo it.',
-    'People from Mexico working abroad sent about $62 billion home in 2025.',
+    'In 2025, a record 398,258 H-2A farm jobs were approved. About 9 out of 10 H-2A visas go to workers from Mexico.',
+    'H-2A seasons last about 6 months. The visa never leads to a green card by itself.',
+    'Only a year-round job can sponsor a farmworker for a green card, and just 10,000 of those are given each year for the whole world.',
+    'Farms must pay for housing and travel, and they may not charge workers recruiting fees.',
   ],
 };
-const OUTCOME = {
-  citizen: { text: 'U.S. CITIZEN', color: '#f5c451' },
-  gc: { text: 'GREEN CARD', color: '#4ade80' },
-  h1b: { text: 'STILL WAITING', color: '#fbbf24' },
-  opt: { text: 'STILL A STUDENT', color: '#fbbf24' },
-  student: { text: 'STILL A STUDENT', color: '#fbbf24' },
-  left: { text: 'LEFT THE U.S.', color: '#fb7185' },
-  expired: { text: 'VISA EXPIRED', color: '#fb7185' },
-  canada: { text: 'MOVED TO CANADA', color: '#fb7185' },
-  home: { text: 'SEASONAL WORKER', color: '#fbbf24' },
-  season: { text: 'SEASONAL WORKER', color: '#fbbf24' },
+const OUTCOMES = {
+  gc: ['Got a green card', 'var(--green)'], h1b: ['Still waiting', '#d9661c'], opt: ['Never got a visa', '#d9661c'], student: ['Still in school', '#d9661c'],
+  left: ['Moved home', 'var(--red)'], canada: ['Moved to Canada', 'var(--red)'], home: ['Still seasonal', '#d9661c'], season: ['Still seasonal', '#d9661c'],
 };
-
 function finishGame() {
-  closeAllOverlays();
+  clearOverlays();
+  $$('.coach').forEach((c) => c.remove());
   S.over = true;
   S.phase = 'over';
   save();
   const ch = CHARACTERS[S.charId];
-  const oc = OUTCOME[S.outcome === 'expired' ? 'expired' : S.status] || OUTCOME.h1b;
-  const sec = E.security(S);
-  const pr = E.progress(S);
-  const yearsPlayed = S.year;
-  const headline = {
-    citizen: `${ch.name} became a U.S. citizen.`,
-    gc: `${ch.name} got a green card.`,
-    h1b: `${ch.name} is still waiting in line.`,
-    left: `${ch.name} had to leave the United States.`,
-    canada: `${ch.name} moved to Canada.`,
-    home: `${ch.name} is still a seasonal guest worker.`,
-    season: `${ch.name} is still a seasonal guest worker.`,
-    student: `${ch.name} is still trying to win a visa.`,
-    opt: `${ch.name} is still trying to win a visa.`,
-  }[S.status] || `${ch.name}'s journey`;
-  const share = `PAPER TRAIL · Table ${S.code} · ${ch.name} · ${E.SECURITY_LABELS[sec]} (${sec}/5) · ${yearsPlayed} yrs · ${E.fmtMoney(S.money)} · ${S.stats.rejections} rejections`;
-  const extraQ = S.track === 'h2a'
-    ? `Marco worked ${S.seasons} season${S.seasons === 1 ? '' : 's'} in the U.S. Should years of seasonal work count toward a green card? Why or why not?`
-    : S.charId === 'priya'
-      ? 'Priya and Lukas did the same things. Is a per-country limit fair? What would change if the limit were removed?'
-      : 'Lukas moved faster than Priya with the same job and forms. How would you explain that to Priya?';
+  const [verdict, color] = OUTCOMES[S.status] || OUTCOMES.h1b;
+  const lad = E.ladder(S);
+  const headline = { gc: `${ch.name} can stay for good`, h1b: `${ch.name} is still in line`, left: `${ch.name} went home`, canada: `${ch.name} left for Canada`, home: `${ch.name} is still a guest worker`, student: `${ch.name} is still trying`, opt: `${ch.name} is still trying` }[S.status] || `${ch.name}'s story`;
+  const share = `PAPER TRAIL · ${S.code} · ${ch.name} · ${E.LADDER[lad]} · ${E.money$(S.money)} · ${S.stats.rejections} rejected`;
+  const q3 = S.track === 'h2a'
+    ? `Marco worked ${S.seasons} harvest season${S.seasons === 1 ? '' : 's'}. Should years of seasonal work count toward a green card?`
+    : S.charId === 'priya' ? 'Priya did what Lukas did. Is it fair that each country gets the same number of green cards?' : 'You moved faster than Priya with the same job. How would you explain that to her?';
   app.innerHTML = `
-  <section class="screen" style="align-items:flex-start">
-    <div class="end">
-      <div class="end-hero" style="--bgimg:url('${imgSrc(ch.bg)}')">
-        <div>
-          <div class="step-label">Final results · Table ${esc(S.code)} · ${E.START_CAL}–${E.yearLabel(S)}</div>
-          <h1>${esc(headline)}</h1>
-          <p class="muted" style="font-size:16px;margin:10px 0 0">${esc(S.name && S.name !== ch.name ? `${S.name} played ${ch.name}. ` : '')}${esc(E.statusLabel(S))}.</p>
-        </div>
-        <div class="end-outcome" style="color:${oc.color}">${oc.text}</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-box"><div class="k">Security reached</div><div class="v">${sec} / 5</div><div class="pips">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= sec ? 'on' : ''}"></i>`).join('')}</div></div>
-        <div class="stat-box"><div class="k">${S.track === 'h2a' ? 'Family savings' : 'Savings'}</div><div class="v" style="color:${S.money < 0 ? 'var(--red)' : ''}">${E.fmtMoney(S.money)}</div></div>
-        <div class="stat-box"><div class="k">Fees paid (you / employer)</div><div class="v" style="font-size:22px">${E.fmtMoney(S.stats.feesYou)} / ${E.fmtMoney(S.stats.feesEmployer)}</div></div>
-        <div class="stat-box"><div class="k">${S.track === 'h2a' ? 'Seasons worked' : 'Years waiting in line'}</div><div class="v">${S.track === 'h2a' ? S.seasons : S.stats.yearsInLine}</div></div>
-        <div class="stat-box"><div class="k">Steps completed</div><div class="v">${pr.done} / ${pr.total}</div></div>
-        <div class="stat-box"><div class="k">Rejections</div><div class="v">${S.stats.rejections}</div></div>
-        <div class="stat-box"><div class="k">Wait cards received</div><div class="v">${S.stats.waitCards}</div></div>
-        <div class="stat-box"><div class="k">Cards opened</div><div class="v">${S.stats.cardsOpened}</div></div>
-      </div>
-      <div class="end-cols">
-        <div class="panel"><h4><span>🗓 Your journey</span></h4>
-          <ul class="timeline">${S.history.map((h) => `<li><span class="y">${h.cal}</span><span>${h.icon}</span><span>${esc(h.text)}</span></li>`).join('') || '<li>No events recorded.</li>'}</ul>
-        </div>
-        <div>
-          <div class="real"><h3>🌎 Real-world check</h3><ul>${REAL[S.charId].map((r) => `<li>${esc(r)}</li>`).join('')}</ul></div>
-          <div class="discuss"><h3>💬 Talk with your partner</h3><ol>
-            <li>What decided how far you got: your choices, luck, money, or where you were born?</li>
-            <li>Compare end screens. Who reached more security? Was that fair?</li>
-            <li>${esc(extraQ)}</li>
-            <li>If you were in Congress, what ONE rule would you change? Who would support it, and who might object?</li>
-          </ol></div>
+  <section class="screen" style="align-items:flex-start"><div class="end">
+    ${charCardHTML(S.charId)}
+    <div>
+      <h1>${esc(headline)}</h1>
+      <div class="verdict-stamp" style="color:${color}">${verdict}</div>
+      <p style="font-size:18px">${E.TURN_YEARS[0]}–${E.yearOf(S)} · Status: <b>${E.LADDER[lad]}</b> · Money: <b>${E.money$(S.money)}</b> · Fees you paid: <b>${E.money$(S.stats.feesYou)}</b> · Your ${S.track === 'h2a' ? 'farm' : 'boss'} paid: <b>${E.money$(S.stats.feesBoss)}</b> · Rejected: <b>${S.stats.rejections}</b>${S.track === 'h2a' ? ` · Seasons worked: <b>${S.seasons}</b>` : ` · Turns waiting in line: <b>${S.stats.turnsInLine}</b>`}</p>
+      <div class="end-grid">
+        <div class="panel"><h3>Your road</h3><ul class="log-list" style="max-height:320px">${S.history.map((h) => `<li><span class="y">${h.year}</span><span>${h.icon}</span><span>${esc(h.text)}</span></li>`).join('')}</ul></div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="panel real"><h3>In real life</h3><ul>${REAL[S.charId].map((r) => `<li>${esc(r)}</li>`).join('')}</ul></div>
+          <div class="panel talk"><h3>Talk with your partner</h3><ol>
+            <li>What decided how far you got: choices, luck, money, or where you were born?</li>
+            <li>Compare your results. Was it fair?</li>
+            <li>${esc(q3)}</li>
+            <li>If you could change one rule, what would it be? Who would agree or disagree?</li></ol></div>
         </div>
       </div>
-      <div class="share-line" title="Copy this for your class chart">${esc(share)}</div>
-      <div class="end-actions">
-        <button class="btn primary big" id="again">↻ Play again</button>
-        <button class="btn big" id="other">Try another character</button>
-        <a class="btn big" href="teacher.html">Teacher guide</a>
-      </div>
+      <div class="share">${esc(share)}</div>
+      <div class="end-actions"><button class="btn go big" id="again">Play again</button><button class="btn big" id="other">New player</button><a class="btn big" href="teacher.html">Teacher guide</a></div>
     </div>
-  </section>`;
-  if (sec >= 4) FX.confettiRain();
-  $('#again').onclick = () => { setup.charId = S.charId; store.del('pt-save'); renderIntro(); };
-  $('#other').onclick = () => { setup.charId = null; store.del('pt-save'); renderSetup(); };
-  window.scrollTo(0, 0);
+  </div></section>`;
+  if (lad >= 4 && S.status === 'gc') FX.confettiRain();
+  $('#again').onclick = () => { setup.charId = S.charId; store.del('pt-save-v2'); renderIntro(); };
+  $('#other').onclick = () => { setup.charId = null; store.del('pt-save-v2'); renderSetup(); };
+  scrollTo(0, 0);
 }
 
-// ───────────────────────── menus ─────────────────────────
-function showHelp() {
-  openOverlay(`
-    <button class="icon-btn close-x" data-close aria-label="Close">✕</button>
-    <h2>How to play</h2>
-    <ol style="font-size:15.5px;line-height:1.6">
-      <li><b>Open your pack.</b> Each year you get ${E.PACK_SIZE} cards. Money and expense cards happen right away. Documents go into your folder. Forms and actions go into your hand.</li>
-      <li><b>Read your cards.</b> Click any card to learn what it is, who files it, and what it needs.</li>
-      <li><b>File forms in order.</b> Drag a form onto your Paper Trail (or click it and press File). Too early = <b>REJECTED</b>: the fee is lost and a Rejection Notice clogs your hand.</li>
-      <li><b>Documents matter.</b> If you file the right form but are missing a document, you get a <b>Request for Evidence (RFE)</b>. Find the document before the deadline or it is denied.</li>
-      <li><b>Wait cards</b> can’t be played or discarded. They take up space in your hand until they expire.</li>
-      <li><b>End the year.</b> Keep up to ${E.HAND_LIMIT} cards, pick 1 bonus card, then compare with your partner.</li>
-    </ol>
-    <h3 style="margin-top:14px">Who’s who</h3>
-    <ul style="font-size:14.5px">${Object.values(AGENCIES).filter((a) => !['You', 'Life'].includes(a.name)).map((a) => `<li><b style="color:${a.color}">${esc(a.name)}</b> — ${esc(a.full)}</li>`).join('')}</ul>
-    <h3 style="margin-top:14px">Security levels</h3>
-    <p style="font-size:14.5px">${E.SECURITY_LABELS.map((l, i) => `<b>${i}</b> ${esc(l)}`).join(' · ')}</p>
-    <div class="row"><button class="btn primary" data-close>Back to the game</button></div>`);
-}
-function showMenu() {
-  const { el, close } = openOverlay(`
-    <h2>Menu</h2>
-    <p class="muted">Table ${esc(S.code)} · ${esc(S.scenario.name)}</p>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-      <button class="btn" id="m-help">❓ How to play</button>
-      <a class="btn" href="teacher.html" target="_blank" rel="noopener">📘 Teacher guide</a>
-      <button class="btn danger" id="m-quit">⏏ Quit to title (your game is saved)</button>
-      <button class="btn" data-close>Close</button>
-    </div>`, { cls: 'result-modal' });
-  $('#m-help', el).onclick = () => { close(); showHelp(); };
-  $('#m-quit', el).onclick = () => { close(); renderTitle(); };
-}
-
-// ───────────────────────── resume ─────────────────────────
-function resumeGame() {
+// ───────────────────────── resume + boot ─────────────────────────
+function resume() {
   shownMoney = S.money;
-  if (S.over || S.phase === 'over') return finishGame();
+  if (S.over) return finishGame();
   renderBoard();
-  if (S.phase === 'end' || S.phase === 'sync') showYearEnd();
-  else if (S.pendingChoice) showChoice().then(() => { save(); renderBoard(); });
+  if (S.phase === 'end' || S.phase === 'recap') showRecap();
+  else if (S.phase === 'start' && S.lastNotes) showTurnStart({ notes: S.lastNotes, sign: S.lastSign, stamp: null });
 }
 
-// ───────────────────────── boot ─────────────────────────
 loadCredits().then(() => {
-  const params = new URLSearchParams(location.search);
-  if (params.get('code')) { setup.code = normalizeCode(params.get('code')); store.set('pt-code', setup.code); }
+  const q = new URLSearchParams(location.search).get('code');
+  if (q) { setup.code = normalizeCode(q); store.set('pt-code', setup.code); }
   renderTitle();
 });

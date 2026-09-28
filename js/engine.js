@@ -1,1039 +1,638 @@
 // Game rules. Pure state + functions; the UI (main.js) calls these and animates the results.
 import { CARDS, FILLER } from './data/cards.js';
-import { CHARACTERS } from './data/characters.js';
+import { CHARACTERS, TEXTS } from './data/characters.js';
 import { getScenario, NEWS } from './data/scenarios.js';
+import { DILEMMAS } from './data/dilemmas.js';
 import { Rng } from './rng.js';
 
-export const MAX_YEARS = 12;
-export const START_CAL = 2027;
-export const HAND_LIMIT = 7;
-export const PACK_SIZE = 5;
+export const TURNS = 8;
+// Each turn covers about 1.5 years.
+export const TURN_YEARS = [2027, 2028, 2030, 2031, 2033, 2034, 2036, 2037];
+export const HAND_LIMIT = 6;
+export const PACK_SIZE = 4;
 
-// Visa Bulletin model: the "final action date" cutoff for each line at the start of the game,
-// and roughly how many years it moves forward each real year.
+// "Now Serving" lines, based on the Sept 2026 Visa Bulletin: most countries (incl. Germany)
+// were Current; India's EB-2 cutoff was July 2014; EB-3 Other Workers (Mexico) was Apr 2022.
+// speed = how many years the line moves forward each turn.
 export const CHARTS = {
-  // Based on the Sept 2026 Visa Bulletin: EB-2 rest of world was "Current"; EB-2 India's last cutoff
-  // was July 15, 2014; EB-3 Other Workers Mexico was Apr 1, 2022.
-  row: { label: 'EB-2 · All other countries (incl. Germany)', start: START_CAL - 0.1, speed: 1.0 },
-  india: { label: 'EB-2 · India', start: 2014.6, speed: 0.4 },
-  'india-eb1': { label: 'EB-1 · India', start: 2023.0, speed: 0.8 },
-  'mexico-eb3': { label: 'EB-3 Other Workers · Mexico', start: 2022.4, speed: 0.6 },
+  row: { label: 'Germany & most countries', start: 2026.9, speed: 1.5 },
+  india: { label: 'India', start: 2014.55, speed: 0.6 },
+  'india-eb1': { label: 'India · top talent (EB-1)', start: 2024.5, speed: 1.3 },
+  'mexico-eb3': { label: 'Mexico · year-round workers', start: 2022.25, speed: 0.9 },
 };
 
 export const TRACKS = {
   h1b: [
-    { id: 'lottery', card: 'h1b-reg', label: 'H-1B Lottery', agency: 'USCIS', kind: 'lottery', by: 'employer' },
-    { id: 'h1b', card: 'i129-h1b', label: 'H-1B Petition', agency: 'USCIS', process: 1, by: 'employer' },
-    { id: 'perm', card: 'perm', label: 'PERM Labor Cert.', agency: 'DOL', process: 2, by: 'employer' },
-    { id: 'i140', card: 'i140', label: 'Immigrant Petition', agency: 'USCIS', process: 1, by: 'employer' },
-    { id: 'bulletin', kind: 'bulletin', label: 'Visa Bulletin', agency: 'DOS', by: 'wait' },
-    { id: 'i485', card: 'i485', label: 'Green Card', agency: 'USCIS', process: 1, by: 'you' },
-    { id: 'n400', card: 'n400', label: 'Citizenship', agency: 'USCIS', process: 1, by: 'you' },
+    { id: 'lottery', card: 'lottery', name: 'Lottery', agency: 'USCIS', by: 'boss', kind: 'lottery' },
+    { id: 'visa', card: 'work-visa', name: 'Work Visa', agency: 'USCIS', by: 'boss', turns: 1 },
+    { id: 'perm', card: 'perm', name: 'No American Applied', agency: 'DOL', by: 'boss', turns: 1 },
+    { id: 'line', card: 'get-in-line', name: 'Get in Line', agency: 'USCIS', by: 'boss', turns: 1 },
+    { id: 'wait', kind: 'wait', name: 'Now Serving', agency: 'DOS', by: 'wait' },
+    { id: 'gc', card: 'gc-app', name: 'Green Card', agency: 'USCIS', by: 'you', turns: 1 },
   ],
   h2a: [
-    { id: 'labor', card: 'eta9142a', label: 'Labor Cert.', agency: 'DOL', process: 0, by: 'employer' },
-    { id: 'petition', card: 'i129-h2a', label: 'H-2A Petition', agency: 'USCIS', process: 0, by: 'employer' },
-    { id: 'visa', card: 'ds160', label: 'Visa Application', agency: 'DOS', process: 0, by: 'you' },
-    { id: 'entry', card: 'poe', label: 'Port of Entry', agency: 'CBP', process: 0, by: 'you' },
-    { id: 'season', kind: 'season', label: 'Work the Season', agency: 'LIFE', by: 'you' },
+    { id: 'permission', card: 'farm-permission', name: 'Farm Permission', agency: 'DOL', by: 'boss', turns: 0 },
+    { id: 'request', card: 'farm-request', name: 'Worker Request', agency: 'USCIS', by: 'boss', turns: 0 },
+    { id: 'interview', card: 'visa-interview', name: 'Visa Interview', agency: 'DOS', by: 'you', turns: 0 },
+    { id: 'border', card: 'border', name: 'Border', agency: 'CBP', by: 'you', turns: 0 },
+    { id: 'season', kind: 'season', name: 'Harvest', agency: 'LIFE', by: 'you' },
   ],
-  // Marco's permanent path, unlocked only by the rare "Year-Round Job Offer" card.
   h2aPerm: [
-    { id: 'pperm', card: 'perm', label: 'PERM Labor Cert.', agency: 'DOL', process: 2, by: 'employer' },
-    { id: 'pi140', card: 'i140', label: 'Immigrant Petition', agency: 'USCIS', process: 1, by: 'employer', docs: [] },
-    { id: 'pbulletin', kind: 'bulletin', label: 'Visa Bulletin', agency: 'DOS', by: 'wait' },
-    { id: 'pds260', card: 'ds260', label: 'Immigrant Visa', agency: 'DOS', process: 1, by: 'you' },
+    { id: 'pperm', card: 'perm', name: 'No American Applied', agency: 'DOL', by: 'boss', turns: 1 },
+    { id: 'pline', card: 'get-in-line', name: 'Get in Line', agency: 'USCIS', by: 'boss', turns: 1, docs: [] },
+    { id: 'pwait', kind: 'wait', name: 'Now Serving', agency: 'DOS', by: 'wait' },
+    { id: 'pvisa', card: 'immigrant-visa', name: 'Green Card', agency: 'DOS', by: 'you', turns: 1 },
   ],
 };
+const ALL_STEPS = [...TRACKS.h1b, ...TRACKS.h2a, ...TRACKS.h2aPerm];
 
-const BY_LABEL = { employer: 'Filed by your employer', you: 'Filed by you', wait: 'A waiting line' };
+export const LADDER = ['No U.S. status', 'Temporary', 'Work visa', 'In line', 'Green card'];
 
-let uidCounter = 1;
-const mkUid = () => 'c' + (uidCounter++).toString(36) + Math.floor(Math.random() * 1e6).toString(36);
-const inst = (id, extra = {}) => ({ uid: mkUid(), id, ...extra });
-const cal = (s) => START_CAL + s.year - 1;
-export const fmtMoney = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+let uidN = 1;
+const uid = () => 'c' + (uidN++).toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+const inst = (id, extra = {}) => ({ uid: uid(), id, ...extra });
+export const money$ = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
 export const fmtDate = (d) => {
   const y = Math.floor(d);
   const m = Math.min(11, Math.floor((d - y) * 12));
-  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m] + ' ' + y;
+  return ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][m] + ' ' + y;
 };
+export const yearOf = (s) => TURN_YEARS[Math.min(s.turn, TURNS) - 1];
 
-function rngOf(s) {
-  const r = new Rng(0);
-  r.s = s.rngS >>> 0;
-  return r;
-}
-function saveRng(s, r) {
-  s.rngS = r.s;
-}
+function rng(s) { const r = new Rng(0); r.s = s.rngS >>> 0; return r; }
+function saveRng(s, r) { s.rngS = r.s; }
+export const stepDef = (id) => ALL_STEPS.find((t) => t.id === id);
+export const stepDocs = (t) => t.docs ?? (t.card ? CARDS[t.card].docs || [] : []);
+export const hasDoc = (s, id) => s.folder.some((f) => f.id === id);
+const inHand = (s, id) => s.hand.some((h) => h.id === id);
+function history(s, icon, text) { s.history.push({ year: yearOf(s), icon, text }); }
 
 // ───────────────────────────── setup ─────────────────────────────
 export function newGame({ code, charId, name }) {
   const ch = CHARACTERS[charId];
   const scenario = getScenario(code);
-  const seed = new Rng(`${scenario.code}|${charId}|${name}|${Date.now()}|${Math.random()}`).s;
   const s = {
-    v: 1, code: scenario.code, scenario, charId, name: name || ch.name, track: ch.track,
-    year: 1, phase: 'news', over: false, outcome: null,
-    money: ch.startMoney, feeMult: 1, wageMult: 1, remitTax: 0, incomeBonus: 0,
+    v: 2, code: scenario.code, scenario, charId, name: name || '', track: ch.track,
+    turn: 1, phase: 'start', over: false, outcome: null,
+    money: ch.startMoney, incomeBonus: 0, wageMult: 1, remitTax: false,
     hand: ch.startHand.map((id) => inst(id)),
     folder: ch.startFolder.map((id) => inst(id)),
-    steps: {}, order: TRACKS[ch.track].map((t) => t.id), permOrder: ch.track === 'h2a' ? TRACKS.h2aPerm.map((t) => t.id) : [],
+    steps: {},
+    order: TRACKS[ch.track].map((t) => t.id),
+    permOrder: ch.track === 'h2a' ? TRACKS.h2aPerm.map((t) => t.id) : [],
     status: ch.track === 'h1b' ? 'opt' : 'home',
-    h1b: null, lotteryTries: 0, pd: null, keptPd: null, chart: ch.chart, gcYear: null,
-    bulletin: Object.fromEntries(Object.entries(CHARTS).map(([k, c]) => [k, c.start])),
-    flags: { shield: 0, organize: false, premium: false, knowRights: false, portfolio: false, sponsored: false },
-    pity: {}, seasons: 0, workedLast: false, rehire: true, seasonMult: 1, seasonBonus: 0, waiver: false, noRehire: false,
-    rngS: seed, pack: null, packOpened: false, draftOpts: null, pendingChoice: null,
-    journal: [], history: [],
-    stats: { feesYou: 0, feesEmployer: 0, rejections: 0, rfes: 0, waitCards: 0, cardsOpened: 0, yearsInLine: 0, earned: 0, scammed: false, seasonsMissed: 0 },
+    tries: 0, pd: null, keptPd: null, chart: ch.chart, gcYear: null,
+    line: Object.fromEntries(Object.entries(CHARTS).map(([k, c]) => [k, c.start])),
+    flags: {}, pity: {}, seasons: 0, workedLast: false, season: { mult: 1, bonus: 0 },
+    rngS: new Rng(`${scenario.code}|${charId}|${name}|${Date.now()}|${Math.random()}`).s,
+    pack: null, packOpened: false, dilemma: null, used: [], tags: ['start'], textsUsed: [],
+    history: [], log: [],
+    stats: { feesYou: 0, feesBoss: 0, rejections: 0, waitCards: 0, cards: 0, turnsInLine: 0, scammed: false },
   };
-  for (const t of allSteps(s)) s.steps[t.id] = { status: 'todo', timer: 0, revealed: false, missing: [] };
-  // First step is shown so students know how to begin.
-  if (s.track === 'h1b') s.steps.lottery.revealed = true;
-  else {
-    s.steps.labor.status = 'approved'; s.steps.labor.revealed = true; s.steps.labor.auto = true;
-    s.steps.petition.status = 'approved'; s.steps.petition.revealed = true; s.steps.petition.auto = true;
+  for (const t of ALL_STEPS) {
+    if (s.order.includes(t.id) || s.permOrder.includes(t.id)) s.steps[t.id] = { status: 'todo', timer: 0, missing: [] };
+  }
+  if (s.track === 'h2a') {
+    for (const id of ['permission', 'request']) Object.assign(s.steps[id], { status: 'approved', auto: true });
   }
   return s;
 }
 
-export function allSteps(s) {
-  return s.track === 'h1b' ? TRACKS.h1b : [...TRACKS.h2a, ...TRACKS.h2aPerm];
+// ───────────────────────────── status ─────────────────────────────
+export function ladder(s) {
+  if (s.status === 'canada') return 4;
+  if (s.status === 'gc') return 4;
+  if (s.status === 'left') return 0;
+  if (s.track === 'h1b') {
+    if (s.status === 'h1b') return s.steps.line.status === 'approved' ? 3 : 2;
+    return 1;
+  }
+  if (s.steps.pline.status === 'approved') return 3;
+  return s.workedLast || s.status === 'season' ? 1 : 0;
 }
-export function stepDef(id) {
-  return [...TRACKS.h1b, ...TRACKS.h2a, ...TRACKS.h2aPerm].find((t) => t.id === id);
+export function statusText(s) {
+  return {
+    opt: 'Student work permit', student: 'Back in school', h1b: 'Work visa (H-1B)', gc: 'Green card holder',
+    left: 'Moved home', canada: 'Living in Canada', season: 'In the U.S. for the harvest',
+    home: s.seasons ? 'Home between seasons' : 'At home in Mexico',
+  }[s.status] || s.status;
 }
-export function stepDocs(t) {
-  if (t.docs) return t.docs;
-  return (t.card && CARDS[t.card].docs) || [];
+export function lineInfo(s) {
+  const cut = s.line[s.chart];
+  const now = yearOf(s);
+  return { label: CHARTS[s.chart].label, cutoff: cut, pd: s.pd, current: s.pd != null && s.pd <= cut, isCurrent: cut >= now - 0.3 };
 }
-export function stepHint(t) {
-  return `${BY_LABEL[t.by] || ''}`;
+export function waitEstimate(s) {
+  if (s.pd == null) return null;
+  const gap = s.pd - s.line[s.chart];
+  return gap <= 0 ? 0 : Math.ceil(gap / (CHARTS[s.chart].speed / 1.5));
 }
 function currentIndex(s, order) {
   const i = order.findIndex((id) => s.steps[id].status !== 'approved');
   return i === -1 ? order.length : i;
 }
-function orderOf(s, stepId) {
-  return s.order.includes(stepId) ? s.order : s.permOrder;
-}
-export function hasDoc(s, id) {
-  return s.folder.some((f) => f.id === id && (!f.expires || f.expires >= s.year));
+export function currentStep(s, order = s.order) {
+  const id = order[currentIndex(s, order)];
+  return id ? stepDef(id) : null;
 }
 
-function addHistory(s, icon, text) {
-  s.history.push({ year: s.year, cal: cal(s), icon, text });
-}
-function log(lines, icon, text, tone = 'info') {
-  lines.push({ icon, text, tone });
-}
-
-// ───────────────────────────── status helpers ─────────────────────────────
-export function security(s) {
-  if (s.status === 'canada') return 4;
-  if (s.status === 'citizen') return 5;
-  if (s.status === 'gc') return 4;
-  if (s.track === 'h1b') {
-    if (s.status === 'left') return 0;
-    if (s.status === 'h1b') return s.steps.i140.status === 'approved' ? 3 : 2;
-    return 1;
-  }
-  if (s.steps.pi140.status === 'approved') return 3;
-  return s.workedLast || s.status === 'season' ? 1 : 0;
-}
-export const SECURITY_LABELS = ['No U.S. status', 'Temporary', 'Work visa', 'Waiting in line', 'Permanent resident', 'U.S. citizen'];
-
-export function statusLabel(s) {
-  switch (s.status) {
-    case 'opt': return 'F-1 student · OPT work permit';
-    case 'student': return 'F-1 student · back in school';
-    case 'h1b': return `H-1B work visa · valid through ${START_CAL + s.h1b.expire - 1}`;
-    case 'gc': return 'Green card holder (permanent resident)';
-    case 'citizen': return 'U.S. citizen';
-    case 'left': return 'Left the United States';
-    case 'canada': return 'Permanent resident of Canada';
-    case 'season': return 'H-2A guest worker · in the U.S. for the season';
-    case 'home': return s.seasons ? 'At home in Mexico between seasons' : 'At home in Mexico';
-    default: return s.status;
-  }
-}
-
-export function bulletinInfo(s) {
-  const chart = s.chart;
-  return { chart, label: CHARTS[chart].label, cutoff: s.bulletin[chart], pd: s.pd, current: s.pd != null && s.pd <= s.bulletin[chart] };
-}
-
-export function estimateWait(s) {
-  const b = bulletinInfo(s);
-  if (b.pd == null) return null;
-  const gap = b.pd - b.cutoff;
-  if (gap <= 0) return 0;
-  return Math.ceil(gap / CHARTS[b.chart].speed);
-}
-
-// ───────────────────────────── year start ─────────────────────────────
-export function startYear(s) {
-  const lines = [];
-  const r = rngOf(s);
-  const newsId = s.scenario.news[s.year - 1] || 'quiet';
-  const news = NEWS[newsId];
-  s.packOpened = false;
-  s.pack = null;
-  s.draftOpts = null;
-  s.seasonMult = 1;
-  s.seasonBonus = 0;
-  s.waiver = false;
-  s.noRehire = false;
-
-  // Visa Bulletin moves forward each year.
-  if (s.year > 1) for (const k of Object.keys(CHARTS)) s.bulletin[k] += CHARTS[k].speed;
-
-  // News effects
-  const eff = news.effect || {};
-  if (eff.feeMult) s.feeMult *= eff.feeMult;
-  if (eff.wageMult && s.track === 'h2a') s.wageMult *= eff.wageMult;
-  if (eff.remitTax) s.remitTax = eff.remitTax;
-  if (eff.season && s.track === 'h2a') s.seasonMult = eff.season;
-  if (eff.seasonBonus && s.track === 'h2a') s.seasonBonus = eff.seasonBonus;
-  if (eff.waiver) s.waiver = true;
-  if (eff.noRehire) s.noRehire = true;
-  if (eff.bulletin) for (const [k, v] of Object.entries(eff.bulletin)) s.bulletin[k] += v;
-  if (eff.money && eff.money[s.track]) {
-    s.money += eff.money[s.track];
-    log(lines, eff.money[s.track] > 0 ? '💵' : '🧾', `${eff.money[s.track] > 0 ? 'You gain' : 'You lose'} ${fmtMoney(Math.abs(eff.money[s.track]))}.`, eff.money[s.track] > 0 ? 'good' : 'bad');
-  }
-  if (eff.addWait && eff.addWait[s.track]) {
-    s.hand.push(inst(eff.addWait[s.track], { ttl: CARDS[eff.addWait[s.track]].ttl }));
-    s.stats.waitCards++;
-    log(lines, '⏳', `A “${CARDS[eff.addWait[s.track]].title}” card was added to your hand.`, 'bad');
-  }
-  if (eff.slowdown) {
-    for (const t of allSteps(s)) {
-      const st = s.steps[t.id];
-      if (st.status === 'pending' && t.kind !== 'lottery') {
-        st.timer += eff.slowdown;
-        log(lines, '🐢', `${t.label} will take ${eff.slowdown} extra year.`, 'bad');
-      }
-    }
-  }
-
-  // Layoffs (scenario-scripted per character)
-  const lay = s.scenario.layoff && s.scenario.layoff[s.year];
-  if (s.track === 'h1b' && lay && lay[s.charId]) layoff(s, lines);
-
-  if (s.track === 'h1b') startYearH1B(s, r, lines);
-  else startYearH2A(s, r, lines);
-
-  s.phase = 'news';
-  saveRng(s, r);
-  return { newsId, news, lines };
-}
-
-function approve(s, stepId, lines) {
-  const t = stepDef(stepId);
-  const st = s.steps[stepId];
+// ───────────────────────────── approvals ─────────────────────────────
+function approve(s, id, notes) {
+  const st = s.steps[id];
   st.status = 'approved';
-  st.revealed = true;
-  st.approvedYear = s.year;
   let stamp = 'APPROVED';
-  switch (stepId) {
-    case 'h1b':
-      s.status = 'h1b';
-      s.h1b = { start: s.year, expire: s.year + 2 };
-      log(lines, '🛂', 'H-1B approved! You can work in the U.S. for 3 years, only for this employer.', 'good');
-      addHistory(s, '🛂', 'H-1B work visa approved');
+  const note = (app, text, tone = 'good') => notes.push({ app, text, tone });
+  switch (id) {
+    case 'visa':
+      s.status = 'h1b'; s.tags.push('visa');
+      note('uscis', 'Case approved: Work Visa. You can work in the U.S. for your employer.');
+      history(s, '🛂', 'Got an H-1B work visa');
       break;
-    case 'perm':
-    case 'pperm':
-      log(lines, '🏛️', 'PERM labor certification approved by the Department of Labor.', 'good');
-      addHistory(s, '🏛️', 'PERM labor certification approved');
+    case 'perm': case 'pperm':
+      note('dol', 'Approved: no U.S. worker applied for the job.');
+      history(s, '📰', '"No American Applied" approved');
       break;
-    case 'i140':
-    case 'pi140': {
-      const permFiled = s.steps[stepId === 'i140' ? 'perm' : 'pperm'].filedCal;
-      s.pd = Math.min(permFiled ?? cal(s), s.keptPd ?? Infinity);
-      log(lines, '🎫', `I-140 approved! Your priority date (place in line) is ${fmtDate(s.pd)}.`, 'good');
-      addHistory(s, '🎫', `I-140 approved · priority date ${fmtDate(s.pd)}`);
+    case 'line': case 'pline': {
+      const filed = s.steps[id].filedYear ?? yearOf(s);
+      s.pd = Math.min(s.keptPd ?? Infinity, filed + 0.3);
+      s.tags.push('line');
+      note('uscis', `Approved: you're in the green card line. Your ticket number is ${fmtDate(s.pd)}.`);
+      history(s, '🎫', `Got a ticket number: ${fmtDate(s.pd)}`);
+      stamp = 'IN LINE';
       break;
     }
-    case 'bulletin':
-    case 'pbulletin':
-      log(lines, '📬', 'Your priority date is CURRENT! You can apply for your green card now.', 'good');
-      addHistory(s, '📬', 'Priority date became current');
-      stamp = 'CURRENT';
+    case 'wait': case 'pwait':
+      note('state', 'Now Serving reached your number! You can apply for your green card.');
+      history(s, '🔔', 'Your number was called');
+      stamp = 'YOUR TURN';
       break;
-    case 'i485':
-    case 'pds260':
-      s.status = 'gc';
-      s.gcYear = s.year;
-      log(lines, '🟩', 'GREEN CARD APPROVED! You are now a lawful permanent resident.', 'great');
-      addHistory(s, '🟩', 'Became a lawful permanent resident (green card)');
+    case 'gc': case 'pvisa':
+      s.status = 'gc'; s.gcYear = yearOf(s); s.tags.push('gc');
+      note('uscis', 'Welcome! Your green card was approved. You can live here for good.', 'great');
+      history(s, '🟩', 'Got a green card!');
       stamp = 'GREEN CARD';
       break;
-    case 'n400':
-      s.status = 'citizen';
-      log(lines, '🇺🇸', 'You passed your citizenship interview and took the oath. You are a U.S. citizen!', 'great');
-      addHistory(s, '🇺🇸', 'Became a U.S. citizen');
-      stamp = 'CITIZEN';
+    case 'interview':
+      s.tags.push('visa');
+      note('state', 'Your H-2A visa is ready. It\'s placed in your passport.');
       break;
-    case 'visa':
-      log(lines, '🛂', 'Visa approved! An H-2A visa is placed in your passport.', 'good');
-      break;
-    case 'entry':
+    case 'border':
       s.status = 'season';
-      log(lines, '🚌', 'CBP admits you at the border. Time to work the season!', 'good');
+      note('farm', 'You crossed the border. Your crew starts tomorrow at 5 a.m.');
       break;
     default:
-      log(lines, '✅', `${t.label} approved.`, 'good');
+      note('uscis', `${stepDef(id).name}: approved.`);
   }
   return stamp;
 }
 
-function startYearH1B(s, r, lines) {
-  // Lottery results
-  const lot = s.steps.lottery;
-  if (lot.status === 'pending') {
-    s.lotteryTries++;
-    const script = s.scenario.lottery?.[s.charId];
-    const selected = script && script[s.lotteryTries - 1] !== undefined ? script[s.lotteryTries - 1] : r.chance(0.3);
-    if (selected) {
-      approve(s, 'lottery', lines);
-      lot.selected = true;
-      log(lines, '🎉', `SELECTED in the H-1B lottery (try #${s.lotteryTries})! Your employer can now file your H-1B Petition.`, 'great');
-      addHistory(s, '🎟️', `Picked in the H-1B lottery on try #${s.lotteryTries}`);
-      s.lastStamp = 'SELECTED';
-    } else {
-      lot.status = 'todo';
-      s.hand.push(inst('h1b-reg'));
-      log(lines, '😞', `Not selected in the H-1B lottery (try #${s.lotteryTries}). Your lottery card is back in your hand — enter again this year.`, 'bad');
-      addHistory(s, '🎟️', `Not picked in the H-1B lottery (try #${s.lotteryTries})`);
-      s.lastStamp = 'NOT SELECTED';
-    }
-  }
-  processPending(s, lines);
+// ───────────────────────────── turn start ─────────────────────────────
+export function startTurn(s) {
+  const r = rng(s);
+  const notes = [];
+  let stamp = null;
+  let sign = null;
+  const news = NEWS[s.scenario.news[s.turn - 1]] || NEWS.quiet;
+  const eff = news.effect || {};
+  s.pack = null; s.packOpened = false; s.dilemma = null; s.phase = 'start';
+  s.season = { mult: 1, bonus: 0 };
+  const prevTags = s.turn > 1 ? s.tags : [];
+  if (s.turn > 1) s.tags = [];
 
-  // Visa Bulletin gate
-  const b = s.steps.bulletin;
-  if (s.steps.i140.status === 'approved' && b.status !== 'approved' && s.status !== 'left') {
-    b.revealed = true;
-    if (bulletinInfo(s).current) {
-      s.lastStamp = approve(s, 'bulletin', lines);
-    } else {
-      b.status = 'waiting';
-      s.stats.yearsInLine++;
-      const n = s.stats.yearsInLine > 2 ? 2 : 1;
-      for (let i = 0; i < n; i++) s.hand.push(inst('not-current', { ttl: CARDS['not-current'].ttl }));
-      s.stats.waitCards += n;
-      const est = estimateWait(s);
-      log(lines, '⏳', `Visa Bulletin: the ${CHARTS[s.chart].label} line is at ${fmtDate(bulletinInfo(s).cutoff)}. Your date is ${fmtDate(s.pd)}. At this speed: about ${est} more year${est === 1 ? '' : 's'}. (+${n} Wait card${n > 1 ? 's' : ''})`, 'bad');
-    }
-  }
+  if (s.turn > 1) for (const k of Object.keys(CHARTS)) s.line[k] += CHARTS[k].speed;
+  if (eff.money?.[s.track]) s.money += eff.money[s.track];
+  if (eff.bulletin) for (const [k, v] of Object.entries(eff.bulletin)) s.line[k] += v;
+  if (eff.wageMult && s.track === 'h2a') s.wageMult *= eff.wageMult;
+  if (eff.remitTax) s.remitTax = true;
+  if (eff.season) s.season.mult = eff.season;
+  if (eff.seasonBonus) s.season.bonus = eff.seasonBonus;
+  if (eff.addWait?.[s.track]) { s.hand.push(inst(eff.addWait[s.track], { ttl: 1 })); s.stats.waitCards++; }
+  if (eff.slowdown) for (const t of ALL_STEPS) if (s.steps[t.id]?.status === 'pending' && t.kind !== 'lottery') s.steps[t.id].timer++;
+  notes.push({ app: 'news', text: `${news.headline}. ${news.text.all || news.text[s.track]}`, tone: 'info' });
 
-  // Student work permit (OPT) runs out after 3 years
-  if (s.status === 'opt' && s.year === 4 && s.steps.lottery.status !== 'approved') {
-    s.pendingChoice = { id: 'opt-end' };
-  }
-  // Warnings
-  if (s.status === 'h1b' && s.year >= s.h1b.expire - 1) {
-    log(lines, '⚠️', `Your H-1B ends after ${START_CAL + s.h1b.expire - 1}. File an H-1B Extension ${s.year === s.h1b.expire ? 'THIS YEAR' : 'soon'}!`, 'warn');
-  }
-  if (s.status === 'gc' && s.year === s.gcYear + 4) {
-    log(lines, '🗽', 'You’ve almost had your green card for 5 years. You can now apply for citizenship (N-400)!', 'good');
-  }
-}
+  const lay = s.scenario.layoff?.[s.turn];
+  if (s.track === 'h1b' && lay?.[s.charId]) layoff(s, notes);
 
-function startYearH2A(s, r, lines) {
-  processPending(s, lines);
-  // A new season starts: reset the seasonal steps.
-  if (s.year > 1) {
-    for (const id of s.order) Object.assign(s.steps[id], { status: 'todo', timer: 0, missing: [], auto: false });
-    s.status = 'home';
-    const rehired = !s.noRehire && (s.workedLast || r.chance(0.5));
-    if (rehired && !s.workedLast) {
-      for (const id of ['labor', 'petition']) Object.assign(s.steps[id], { status: 'approved', revealed: true, auto: true });
-      log(lines, '📨', 'A recruiter for a farm in North Carolina found you! The new employer filed the Labor Certification and H-2A Petition.', 'good');
-    } else if (rehired) {
-      for (const id of ['labor', 'petition']) Object.assign(s.steps[id], { status: 'approved', revealed: true, auto: true });
-      log(lines, '📨', 'Your employer asked for you again! It filed the Labor Certification and H-2A Petition for you.', 'good');
-    } else if (s.noRehire) {
-      log(lines, '🏜️', 'No farm has filed for you yet. You need a Labor Certification and an H-2A Petition before you can get a visa.', 'bad');
-    } else {
-      log(lines, '📭', 'You missed last season, so your old employer hired someone else. A new farm needs to file a Labor Certification and H-2A Petition for you.', 'bad');
-    }
-    if (s.waiver && s.workedLast && !s.noRehire) {
-      Object.assign(s.steps.visa, { status: 'approved', revealed: true, auto: true });
-      log(lines, '✅', 'Interview waiver: your visa was renewed without an interview.', 'good');
-    }
-  }
-  // Permanent path gate
-  if (s.flags.sponsored && s.steps.pi140.status === 'approved' && s.steps.pbulletin.status !== 'approved') {
-    s.steps.pbulletin.revealed = true;
-    if (bulletinInfo(s).current) s.lastStamp = approve(s, 'pbulletin', lines);
-    else {
-      s.steps.pbulletin.status = 'waiting';
-      s.stats.yearsInLine++;
-      s.hand.push(inst('not-current', { ttl: 2 }));
-      s.stats.waitCards++;
-      const est = estimateWait(s);
-      log(lines, '⏳', `Visa Bulletin: the ${CHARTS[s.chart].label} line is at ${fmtDate(bulletinInfo(s).cutoff)}. Your date is ${fmtDate(s.pd)}. About ${est} more years. (+1 Wait card)`, 'bad');
-    }
-  }
-}
-
-function processPending(s, lines) {
-  for (const t of allSteps(s)) {
+  // Paperwork that was waiting gets decided.
+  for (const t of ALL_STEPS) {
     const st = s.steps[t.id];
-    if (st.status === 'pending' && t.kind !== 'lottery') {
-      st.timer -= 1;
-      if (st.timer <= 0) s.lastStamp = approve(s, t.id, lines);
-      else log(lines, '⏳', `${t.label}: still processing (${st.timer} more year${st.timer > 1 ? 's' : ''}).`, 'info');
+    if (!st || st.status !== 'pending' || t.kind === 'lottery') continue;
+    st.timer -= 1;
+    if (st.timer <= 0) stamp = approve(s, t.id, notes);
+    else notes.push({ app: t.agency === 'DOL' ? 'dol' : 'uscis', text: `${t.name}: still being reviewed.`, tone: 'info' });
+  }
+
+  if (s.track === 'h1b') {
+    const lot = s.steps.lottery;
+    if (lot.status === 'pending') {
+      s.tries++;
+      const script = s.scenario.lottery?.[s.charId];
+      const won = script && script[s.tries - 1] !== undefined ? script[s.tries - 1] : r.chance(0.35);
+      if (won) {
+        approve(s, 'lottery', []);
+        s.tags.push('lottery-win');
+        notes.push({ app: 'uscis', text: `You were SELECTED in the work visa lottery (try #${s.tries})! Your boss can now send your Work Visa Request.`, tone: 'great' });
+        history(s, '🎟️', `Won the lottery on try #${s.tries}`);
+        stamp = 'SELECTED';
+      } else {
+        lot.status = 'todo';
+        s.hand.push(inst('lottery'));
+        s.tags.push('lottery-lose');
+        notes.push({ app: 'uscis', text: `Not selected in the lottery (try #${s.tries}). Your ticket is back in your hand.`, tone: 'bad' });
+        history(s, '🎟️', `Lost the lottery (try #${s.tries})`);
+        stamp = 'NOT PICKED';
+      }
     }
+    if (s.status === 'opt' && s.turn === 4 && lot.status !== 'approved') s.dilemma = 'opt-end';
+  } else {
+    marcoSeasonStart(s, r, notes);
+  }
+
+  // Now Serving
+  const waitId = s.track === 'h1b' ? 'wait' : 'pwait';
+  const lineId = s.track === 'h1b' ? 'line' : 'pline';
+  if (s.steps[lineId]?.status === 'approved' && s.steps[waitId].status !== 'approved' && !['left', 'canada'].includes(s.status)) {
+    const before = s.line[s.chart] - (s.turn > 1 ? CHARTS[s.chart].speed : 0);
+    const info = lineInfo(s);
+    sign = { before, after: info.cutoff, pd: s.pd, label: info.label, current: info.current };
+    if (info.current) stamp = approve(s, waitId, notes);
+    else {
+      s.steps[waitId].status = 'waiting';
+      s.stats.turnsInLine++;
+      s.tags.push('waiting');
+      const n = s.stats.turnsInLine > 1 ? 2 : 1;
+      for (let i = 0; i < n; i++) s.hand.push(inst('take-number', { ttl: 2 }));
+      s.stats.waitCards += n;
+      sign.estimate = waitEstimate(s);
+    }
+  }
+
+  notes.splice(1, 0, familyText(s, r, prevTags));
+  saveRng(s, r);
+  s.lastNotes = notes;
+  s.lastSign = sign;
+  s.lastStamp = stamp;
+  return { notes, sign, stamp, news };
+}
+
+function marcoSeasonStart(s, r, notes) {
+  if (s.turn === 1) return;
+  for (const id of s.order) Object.assign(s.steps[id], { status: 'todo', timer: 0, missing: [], auto: false });
+  s.status = 'home';
+  const news = NEWS[s.scenario.news[s.turn - 1]] || {};
+  const noRehire = news.effect?.noRehire || s.flags.noRehireNext;
+  s.flags.noRehireNext = false;
+  const rehired = s.flags.recruited || (!noRehire && (s.workedLast || r.chance(0.5)));
+  s.flags.recruited = false;
+  if (rehired) {
+    for (const id of ['permission', 'request']) Object.assign(s.steps[id], { status: 'approved', auto: true });
+    notes.push({ app: 'farm', text: s.workedLast ? 'We filed for you again this season. See you soon!' : 'A new farm in North Carolina filed papers for you!', tone: 'good' });
+  } else {
+    notes.push({ app: 'farm', text: 'No farm has filed for you yet. You need a farm\'s permission and worker request first.', tone: 'bad' });
   }
 }
 
-function layoff(s, lines) {
-  if (s.status === 'gc' || s.status === 'citizen') {
+function familyText(s, r, prevTags = []) {
+  const pool = TEXTS[s.charId];
+  const order = ['gc', 'lottery-win', 'lottery-lose', 'rejected', 'line', 'visa', 'waiting', 'season', 'missed', 'start'];
+  const tags = [...s.tags, ...prevTags];
+  const tag = order.find((t) => tags.includes(t) && pool[t]) || 'default';
+  const options = pool[tag].filter((t) => !s.textsUsed.includes(t));
+  const text = options.length ? r.pick(options) : r.pick(pool.default);
+  s.textsUsed.push(text);
+  const ch = CHARACTERS[s.charId];
+  return { app: 'family', from: `${ch.family} (${ch.familyRole})`, text, tone: 'family' };
+}
+
+function layoff(s, notes) {
+  if (s.status === 'gc') {
     s.money -= 2000;
-    log(lines, '📉', 'You were laid off — but with a green card you can take any job. You find a new one in 2 months. (−$2,000)', 'warn');
-    addHistory(s, '📉', 'Laid off, found a new job quickly (green card = freedom to switch)');
-    return;
-  }
-  if (s.status === 'h1b') {
+    notes.push({ app: 'news', text: 'You were laid off, but with a green card you can take any job. You found one in 2 months. (−$2,000)', tone: 'warn' });
+    history(s, '📉', 'Laid off, but a green card let me switch fast');
+  } else if (s.status === 'h1b') {
     s.money -= 3000;
-    const kept = s.steps.i140.status === 'approved';
-    if (kept) s.keptPd = s.pd;
-    for (const id of ['perm', 'i140', 'bulletin']) Object.assign(s.steps[id], { status: 'todo', timer: 0, missing: [] });
-    if (!kept) s.pd = null;
-    log(lines, '📉', `You were laid off! You had 60 days to find a new sponsor — and you did. But your new employer must start PERM and the I-140 over. ${kept ? 'Good news: because your I-140 was approved, you KEEP your priority date.' : 'Your place in line is lost.'} (−$3,000)`, 'bad');
-    addHistory(s, '📉', `Laid off; new employer restarted PERM & I-140${kept ? ' (kept priority date)' : ''}`);
-    return;
+    const kept = restartGreenCard(s);
+    notes.push({ app: 'news', text: `You were laid off! You had 60 days to find a new sponsor, and you did. But your green card steps start over.${kept ? ' You keep your ticket number.' : ''} (−$3,000)`, tone: 'bad' });
+    history(s, '📉', 'Laid off. Green card steps restarted.');
+  } else {
+    s.money -= 1500;
+    notes.push({ app: 'news', text: 'Your company cut jobs. You found another one but lost a month of pay. (−$1,500)', tone: 'warn' });
   }
-  s.money -= 1500;
-  log(lines, '📉', 'Your company cut jobs. You found a new job, but lost a month of pay. (−$1,500)', 'warn');
+}
+
+export function restartGreenCard(s) {
+  const kept = s.steps.line.status === 'approved';
+  if (kept) s.keptPd = s.pd;
+  s.pd = null;
+  for (const id of ['perm', 'line', 'wait']) Object.assign(s.steps[id], { status: 'todo', timer: 0, missing: [] });
+  return kept;
 }
 
 // ───────────────────────────── packs ─────────────────────────────
-function frontier(s, order) {
-  // The first step that still needs a card to be filed.
-  for (const id of order) {
-    const st = s.steps[id];
-    const t = stepDef(id);
-    if (st.status === 'approved' || st.status === 'pending' || st.status === 'rfe') continue;
-    if (!t.card) return null; // waiting at a gate
-    return t;
-  }
-  return null;
-}
-const inHand = (s, id) => s.hand.some((h) => h.id === id);
-
 function needs(s) {
   const need = [];
   const decoys = [];
   const docs = [];
   const orders = [s.order];
-  if (s.track === 'h2a' && s.flags.sponsored) orders.push(s.permOrder);
+  if (s.flags.sponsored) orders.push(s.permOrder);
   for (const order of orders) {
+    const todo = order.map(stepDef).filter((t) => t.card && s.steps[t.id].status === 'todo');
     if (s.track === 'h2a' && order === s.order) {
-      for (const id of order) {
-        const t = stepDef(id);
-        const st = s.steps[id];
-        if (t.card && st.status === 'todo' && !inHand(s, t.card)) need.push(t.card);
-      }
-    } else {
-      const f = frontier(s, order);
-      const idx = f ? order.indexOf(f.id) : -1;
-      if (f && !inHand(s, f.card)) {
-        if (!(f.id === 'n400' && s.year < s.gcYear + 3)) need.push(f.card);
-      }
-      for (const id of order.slice(Math.max(0, idx + 1))) {
-        const t = stepDef(id);
-        if (t.card && s.steps[id].status === 'todo' && !inHand(s, t.card)) decoys.push(t.card);
-      }
+      for (const t of todo) if (!inHand(s, t.card)) need.push(t.card);
+    } else if (todo.length) {
+      if (!inHand(s, todo[0].card)) need.push(todo[0].card);
+      for (const t of todo.slice(1)) if (!inHand(s, t.card)) decoys.push(t.card);
     }
-    // Documents for the next two steps that need papers
-    let seen = 0;
-    for (const id of order) {
-      const t = stepDef(id);
-      if (s.steps[id].status === 'approved' || !t.card) continue;
+    for (const t of order.map(stepDef).filter((x) => x.card && s.steps[x.id].status !== 'approved')) {
       for (const d of stepDocs(t)) if (!hasDoc(s, d) && !docs.includes(d)) docs.push(d);
-      if (++seen >= 2) break;
     }
   }
-  // Maintenance: H-1B extension when it's about to run out
-  if (s.status === 'h1b' && s.year >= s.h1b.expire - 1 && !inHand(s, 'h1b-ext')) need.unshift('h1b-ext');
   return { need, decoys: decoys.filter((d) => !need.includes(d)), docs };
 }
 
 export function makePack(s) {
   if (s.pack) return s.pack;
-  const r = rngOf(s);
+  const r = rng(s);
   const { need, decoys, docs } = needs(s);
+  const size = PACK_SIZE - (s.flags.smallPack ? 1 : 0);
+  s.flags.smallPack = false;
   const pack = [];
   const multi = s.track === 'h2a';
-  const H2A_P = { ds160: 0.8, poe: 0.8, eta9142a: 0.5, 'i129-h2a': 0.5 };
+  const P = { 'visa-interview': 0.8, border: 0.8, 'farm-permission': 0.55, 'farm-request': 0.55 };
+  const justWon = s.steps.lottery?.status === 'approved' && s.steps.visa?.status === 'todo' && s.tags.includes('lottery-win');
   need.forEach((id, i) => {
-    if (pack.length >= 3) return;
+    if (pack.length >= 2 + (multi ? 1 : 0)) return;
     const pity = s.pity[id] || 0;
-    const justPicked = id === 'i129-h1b' && s.steps.lottery.approvedYear === s.year; // 90-day filing window
-    const forced = s.flags.organize || s.year === 1 || justPicked || id === 'h1b-ext' || pity >= (multi ? 1 : 2);
-    const p = multi ? H2A_P[id] ?? 0.45 : i === 0 ? 0.45 : 0.3;
-    if (forced || r.chance(p)) {
-      pack.push(inst(id, { glow: true }));
-      s.pity[id] = 0;
-    } else s.pity[id] = pity + 1;
+    const forced = s.flags.organize || s.turn === 1 || (id === 'work-visa' && justWon) || pity >= 1;
+    if (forced || r.chance(multi ? P[id] ?? 0.5 : i === 0 ? 0.6 : 0.3)) { pack.push(inst(id)); s.pity[id] = 0; }
+    else s.pity[id] = pity + 1;
   });
   s.flags.organize = false;
-  if (docs.length && pack.length < 4) {
+  if (docs.length && pack.length < size - 1) {
     const d = docs[0];
-    const pity = s.pity['doc:' + d] || 0;
-    if (pity >= 2 || r.chance(0.5)) {
-      pack.push(inst(d));
-      s.pity['doc:' + d] = 0;
-    } else s.pity['doc:' + d] = pity + 1;
+    const pity = s.pity['d:' + d] || 0;
+    if (pity >= 1 || r.chance(0.5)) { pack.push(inst(d)); s.pity['d:' + d] = 0; } else s.pity['d:' + d] = pity + 1;
   }
-  if (decoys.length && pack.length < 4 && r.chance(0.3)) pack.push(inst(r.pick(decoys), { glow: true }));
-
+  if (decoys.length && pack.length < size - 1 && r.chance(0.35)) pack.push(inst(r.pick(decoys)));
   const pool = FILLER[s.track];
-  const weights = { money: 30, expense: 24, action: 16, event: 8, wait: 10 };
-  if (s.track === 'h1b' && s.status !== 'h1b') weights.event = 0; // job offers only matter on a work visa
-  const types = Object.keys(weights).filter((k) => weights[k] > 0 && pool[k]?.length);
-  while (pack.length < PACK_SIZE) {
-    const type = r.weighted(types, (k) => weights[k]);
+  const w = { money: 32, bill: 28, action: 22, wait: 10 };
+  while (pack.length < size) {
+    const type = r.weighted(Object.keys(w), (k) => w[k]);
     let id = r.pick(pool[type]);
-    if (id === 'premium' && !['h1b', 'i140'].some((x) => s.steps[x] && s.steps[x].status !== 'approved')) id = 'organize';
+    if (id === 'fast-track' && !['visa', 'line'].some((x) => s.steps[x]?.status !== 'approved')) id = 'organize';
+    if (type === 'action' && pack.some((c) => c.id === id)) continue; // no duplicate help cards in one pack
     pack.push(inst(id));
   }
-  s.pack = r.shuffle(pack);
-  s.stats.cardsOpened += s.pack.length;
+  s.pack = r.shuffle(pack).slice(0, size);
+  s.stats.cards += s.pack.length;
   saveRng(s, r);
   return s.pack;
 }
 
-// Apply one revealed card. Returns a short result for the pack screen.
 export function collectCard(s, c) {
   const card = CARDS[c.id];
-  if (card.type === 'money' || card.type === 'expense' || (card.type === 'event' && card.effect?.kind === 'money')) {
-    const amt = card.effect.money;
-    s.money += amt;
-    if (amt > 0) s.stats.earned += amt;
-    return { text: `${amt > 0 ? '+' : '−'}${fmtMoney(Math.abs(amt)).replace('−', '')}`, tone: amt > 0 ? 'good' : 'bad', money: amt };
-  }
-  if (card.type === 'event' && card.effect?.kind === 'choice') {
-    s.pendingChoice = { id: card.effect.id };
-    return { text: 'Decision!', tone: 'warn' };
+  if (card.type === 'money' || card.type === 'bill') {
+    s.money += card.amount;
+    return { text: `${card.amount > 0 ? '+' : '−'}${money$(Math.abs(card.amount))}`, tone: card.amount > 0 ? 'good' : 'bad' };
   }
   if (card.type === 'doc') {
-    const existing = s.folder.find((f) => f.id === c.id);
-    if (existing) {
-      if (card.expires) {
-        existing.expires = s.year + card.expires;
-        return { text: 'Renewed', tone: 'good' };
-      }
-      return { text: 'Already have it', tone: 'info' };
-    }
-    if (card.fee && card.fee.payer === 'you') {
-      const fee = Math.round(card.fee.amt * s.feeMult);
-      s.money -= fee;
-      s.stats.feesYou += fee;
-    }
-    s.folder.push({ ...c, expires: card.expires ? s.year + card.expires : undefined });
-    const fixed = checkRfes(s);
-    return { text: fixed ? 'To folder · RFE fixed!' : 'To folder', tone: 'good', fixed };
+    if (hasDoc(s, c.id)) { s.money += 100; return { text: 'Extra copy · +$100', tone: 'info' }; }
+    if (card.cost) { s.money -= card.cost; s.stats.feesYou += card.cost; }
+    s.folder.push(c);
+    return { text: fixMissing(s) ? 'To papers · unblocked a step!' : 'Added to your papers', tone: 'good' };
   }
   if (card.type === 'wait') {
     s.hand.push({ ...c, ttl: card.ttl });
     s.stats.waitCards++;
-    return { text: 'Stuck in hand', tone: 'bad' };
+    return { text: 'Stuck in your hand', tone: 'bad' };
   }
   s.hand.push(c);
-  return { text: 'To hand', tone: 'info' };
+  return { text: 'To your hand', tone: 'info' };
 }
 
-function checkRfes(s) {
+function fixMissing(s) {
   let fixed = false;
-  for (const t of allSteps(s)) {
+  for (const t of ALL_STEPS) {
     const st = s.steps[t.id];
-    if (st.status !== 'rfe') continue;
+    if (!st || st.status !== 'missing') continue;
     st.missing = st.missing.filter((d) => !hasDoc(s, d));
-    if (!st.missing.length) {
-      fixed = true;
-      st.status = 'pending';
-      st.timer = t.process || 0;
-      if (st.timer <= 0) st.fixedNow = true;
-    }
+    if (!st.missing.length) { fixed = true; st.status = 'pending'; st.timer = t.turns || 0; }
   }
   return fixed;
 }
-// Called by the UI after RFEs are fixed so zero-time steps get approved right away.
-export function settleInstant(s) {
-  const lines = [];
+// Approve any zero-time steps that just got unblocked (e.g., Marco's visa after his passport arrives).
+export function settle(s) {
+  const notes = [];
   let stamp = null;
-  for (const t of allSteps(s)) {
+  for (const t of ALL_STEPS) {
     const st = s.steps[t.id];
-    if (st.status === 'pending' && st.timer <= 0 && t.kind !== 'lottery') stamp = approve(s, t.id, lines);
-    delete st.fixedNow;
+    if (st && st.status === 'pending' && st.timer <= 0 && t.kind !== 'lottery') stamp = approve(s, t.id, notes);
   }
-  return { lines, stamp };
+  return { notes, stamp };
 }
 
 // ───────────────────────────── playing cards ─────────────────────────────
-export function findStepForCard(s, cardId) {
-  const inMain = s.order.find((id) => stepDef(id).card === cardId);
-  if (inMain) return inMain;
-  return s.permOrder.find((id) => stepDef(id).card === cardId && s.flags.sponsored)
+export function stepForCard(s, cardId) {
+  return s.order.find((id) => stepDef(id).card === cardId)
+    || s.permOrder.find((id) => stepDef(id).card === cardId && s.flags.sponsored)
     || s.permOrder.find((id) => stepDef(id).card === cardId);
 }
+const takeFromHand = (s, u) => { const i = s.hand.findIndex((h) => h.uid === u); return i >= 0 ? s.hand.splice(i, 1)[0] : null; };
 
-function removeFromHand(s, uid) {
-  const i = s.hand.findIndex((h) => h.uid === uid);
-  return i >= 0 ? s.hand.splice(i, 1)[0] : null;
+function payFee(s, card) {
+  if (!card.fee) return '';
+  if (card.payer === 'you') { s.money -= card.fee; s.stats.feesYou += card.fee; return `You paid ${money$(card.fee)}.`; }
+  s.stats.feesBoss += card.fee;
+  return `Your ${s.track === 'h2a' ? 'farm' : 'boss'} paid ${money$(card.fee)}.`;
 }
 
-function feeFor(s, card) {
-  return card.fee ? Math.round(card.fee.amt * s.feeMult) : 0;
-}
-
-function reject(s, c, card, reason, nextStepId) {
-  const lines = [];
-  if (s.flags.shield > 0) {
-    s.flags.shield--;
-    if (nextStepId) s.steps[nextStepId].revealed = true;
-    return { ok: false, kind: 'shield', stamp: null, title: 'Your lawyer stopped you!', text: `${reason} Your lawyer caught the mistake before it was filed, so you lost nothing.`, lines };
+function reject(s, c, card, why, nextId) {
+  if (s.flags.shield) {
+    s.flags.shield = false;
+    return { kind: 'saved', title: 'Your lawyer stopped you!', text: `${why} Your lawyer caught it before it was sent. Nothing lost.` };
   }
-  removeFromHand(s, c.uid);
-  const fee = feeFor(s, card);
-  if (card.fee?.payer === 'you') { s.money -= fee; s.stats.feesYou += fee; }
-  else if (card.fee) s.stats.feesEmployer += fee;
-  s.hand.push(inst('rejection-notice', { ttl: 1 }));
-  s.stats.rejections++;
-  s.stats.waitCards++;
-  if (nextStepId) s.steps[nextStepId].revealed = true;
-  addHistory(s, '❌', `${card.title} rejected (filed out of order)`);
-  const lost = fee ? ` The ${fmtMoney(fee)} fee is not refunded${card.fee.payer === 'employer' ? ' (your employer lost it)' : ''}.` : '';
-  const next = nextStepId ? ` Your next step is: ${stepDef(nextStepId).label}.` : '';
-  return { ok: false, kind: 'rejected', stamp: 'REJECTED', title: 'Rejected', text: `${reason}${lost}${next}`, lines };
+  takeFromHand(s, c.uid);
+  const paid = payFee(s, card);
+  s.hand.push(inst('rejected', { ttl: 1 }));
+  s.stats.rejections++; s.stats.waitCards++;
+  s.tags.push('rejected');
+  history(s, '❌', `${card.name} was rejected (too early)`);
+  const next = nextId && stepDef(nextId).card ? ` Your next step is "${CARDS[stepDef(nextId).card].name}".` : '';
+  return { kind: 'rejected', stamp: 'REJECTED', title: 'Rejected!', text: `${why}${paid ? ` ${paid} Fees are not refunded.` : ''}${next}` };
 }
 
-export function canFileHint(s, cardId) {
-  const stepId = findStepForCard(s, cardId);
-  return stepId ? stepDef(stepId) : null;
-}
-
-export function playCard(s, uid) {
-  const c = s.hand.find((h) => h.uid === uid);
-  if (!c) return { ok: false, text: 'Card not found.' };
+export function playCard(s, u) {
+  const c = s.hand.find((h) => h.uid === u);
+  if (!c) return { kind: 'info', text: 'Card not found.' };
   const card = CARDS[c.id];
   if (card.type === 'action') return useAction(s, c, card);
-  if (card.type !== 'form') return { ok: false, text: 'This card can’t be played.' };
-  if (c.id === 'h1b-ext') return fileExtension(s, c, card);
+  if (card.type !== 'form') return { kind: 'info', text: 'Only forms and help cards can be played.' };
+  if (['left', 'canada'].includes(s.status)) return { kind: 'info', text: 'Your U.S. journey has ended.' };
 
-  const stepId = findStepForCard(s, c.id);
-  if (!stepId) return reject(s, c, card, 'This form is not part of your path.', null);
-  const order = orderOf(s, stepId);
+  const stepId = stepForCard(s, c.id);
+  const order = s.order.includes(stepId) ? s.order : s.permOrder;
   if (order === s.permOrder && !s.flags.sponsored) {
-    return reject(s, c, card, 'You need an employer willing to sponsor you for a green card before this form can be filed. H-2A work alone does not lead to a green card.', null);
+    return reject(s, c, card, 'Seasonal farm work can\'t lead to a green card. You\'d need a year-round employer to sponsor you.', null);
   }
   const t = stepDef(stepId);
   const st = s.steps[stepId];
   const cur = currentIndex(s, order);
   const idx = order.indexOf(stepId);
-  const curId = order[Math.min(cur, order.length - 1)];
 
-  if (s.status === 'left' || s.status === 'canada') return { ok: false, text: 'Your U.S. journey has ended.' };
   if (st.status === 'approved') {
-    if (s.track === 'h2a' && order === s.order) return { ok: false, kind: 'info', title: 'Already done this season', text: `${t.label} is already done for this season. Keep this card for next year.` };
-    removeFromHand(s, uid);
-    return { ok: true, kind: 'info', title: 'Already approved', text: `You already finished ${t.label}. You don’t need this card anymore, so it was recycled.` };
+    if (s.track === 'h2a' && order === s.order) return { kind: 'info', title: 'Already done', text: `${t.name} is already done this season. Keep this card for next season.` };
+    takeFromHand(s, u);
+    return { kind: 'info', title: 'Already done', text: 'You already finished this step, so the extra card was recycled.' };
   }
-  if (st.status === 'pending' || st.status === 'rfe') {
-    removeFromHand(s, uid);
-    return { ok: true, kind: 'info', title: 'Already filed', text: `${t.label} is already filed and waiting. Filing twice would waste the fee, so you recycled this copy.` };
+  if (st.status === 'pending' || st.status === 'missing') {
+    takeFromHand(s, u);
+    return { kind: 'info', title: 'Already sent', text: 'This is already sent and waiting, so the extra copy was recycled.' };
   }
-  // Is it too early?
-  let tooEarly = idx > cur;
-  let reason = `Too early! ${card.why}`;
-  if (!tooEarly && stepId === 'n400' && s.year < s.gcYear + 4) {
-    tooEarly = true;
-    reason = `Too early! You must have your green card for about 5 years first (you got it in ${START_CAL + s.gcYear - 1}).`;
-  }
-  if (!tooEarly && stepId === 'lottery' && !['opt', 'student'].includes(s.status)) {
-    return { ok: false, kind: 'info', title: 'No need', text: 'You already have an H-1B.' };
-  }
-  if (tooEarly) {
-    const nextId = order[cur] && stepDef(order[cur]).card ? order[cur] : null;
-    return reject(s, c, card, reason, nextId);
-  }
+  if (t.kind === 'lottery' && !['opt', 'student'].includes(s.status)) return { kind: 'info', text: 'You already have a work visa.' };
+  if (idx > cur) return reject(s, c, card, `Too early! ${card.tip}`, order[cur]);
 
-  // Right step — pay the fee and check documents.
-  removeFromHand(s, uid);
-  const fee = feeFor(s, card);
-  if (card.fee?.payer === 'you') { s.money -= fee; s.stats.feesYou += fee; }
-  else if (card.fee) s.stats.feesEmployer += fee;
-  st.revealed = true;
-  st.filedYear = s.year;
-  st.filedCal = cal(s) + 0.25;
-  const lines = [];
-  const missing = stepDocs(t).filter((d) => !hasDoc(s, d));
-  const payer = card.fee ? (card.fee.payer === 'you' ? `You paid ${fmtMoney(fee)}.` : `Your employer paid ${fmtMoney(fee)}.`) : '';
+  takeFromHand(s, u);
+  const paid = payFee(s, card);
+  st.filedYear = yearOf(s);
   if (t.kind === 'lottery') {
     st.status = 'pending';
-    addHistory(s, '🎟️', 'Entered the H-1B lottery');
-    return { ok: true, kind: 'filed', stamp: 'FILED', title: 'Entered in the lottery!', text: `${payer} Results come at the start of next year.`, lines };
+    history(s, '🎟️', 'Entered the work visa lottery');
+    return { kind: 'filed', stamp: 'ENTERED', title: 'You\'re in the lottery!', text: `${paid} Results come next turn.` };
   }
+  const missing = stepDocs(t).filter((d) => !hasDoc(s, d));
   if (missing.length) {
-    st.status = 'rfe';
+    st.status = 'missing';
     st.missing = missing;
-    st.deadline = t.process ? s.year + 1 : s.year;
-    s.stats.rfes++;
-    const names = missing.map((d) => CARDS[d].title).join(', ');
-    addHistory(s, '📨', `Request for Evidence on ${t.label}`);
-    return { ok: true, kind: 'rfe', stamp: 'RFE', title: 'Request for Evidence', text: `Right step! ${payer} But you’re missing: ${names}. Find ${missing.length > 1 ? 'them' : 'it'} by the end of ${t.process ? 'next year' : 'this year'} or the application will be denied.`, lines };
+    history(s, '📎', `${card.name} is waiting on missing papers`);
+    return { kind: 'missing', stamp: 'MISSING PAPERS', title: 'Right step! But papers are missing', text: `${paid} It will wait until you get: ${missing.map((d) => CARDS[d].name).join(' and ')}.` };
   }
-  let timer = t.process || 0;
-  if (s.flags.premium && ['i129-h1b', 'i140'].includes(c.id)) { timer = 0; s.flags.premium = false; }
+  let turns = t.turns || 0;
+  if (s.flags.fast && t.by === 'boss' && turns) { turns = 0; s.flags.fast = false; }
+  else if (s.flags.slowNext && t.by === 'boss' && turns) { turns++; s.flags.slowNext = false; }
   st.status = 'pending';
-  st.timer = timer;
-  addHistory(s, '📄', `Filed ${card.sub || card.title}`);
-  if (timer <= 0) {
-    const stamp = approve(s, stepId, lines);
-    return { ok: true, kind: 'approved', stamp, title: 'Approved!', text: `${payer} ${lines.map((l) => l.text).join(' ')}`, lines };
+  st.timer = turns;
+  history(s, '📄', `Sent: ${card.name}`);
+  if (turns <= 0) {
+    const notes = [];
+    const stamp = approve(s, stepId, notes);
+    return { kind: 'approved', stamp, title: 'Approved!', text: `${paid} ${notes.map((n) => n.text).join(' ')}` };
   }
-  return { ok: true, kind: 'filed', stamp: 'FILED', title: 'Filed!', text: `${payer} Decision expected in about ${timer} year${timer > 1 ? 's' : ''}.`, lines };
-}
-
-function fileExtension(s, c, card) {
-  if (s.status !== 'h1b') return { ok: false, kind: 'info', title: 'Not needed', text: s.status === 'gc' || s.status === 'citizen' ? 'You have a green card — no more visa extensions needed!' : 'You don’t have an H-1B to extend yet. Keep this card.' };
-  if (s.year < s.h1b.expire - 1) return { ok: false, kind: 'info', title: 'Too early', text: `Your H-1B is good through ${START_CAL + s.h1b.expire - 1}. Keep this card and file it in the year before it runs out.` };
-  const usedYears = s.h1b.expire - s.h1b.start + 1;
-  const i140ok = s.steps.i140.status === 'approved';
-  const permFiledLongAgo = s.steps.perm.filedYear != null && s.steps.perm.status !== 'todo' && s.year - s.steps.perm.filedYear >= 1;
-  if (usedYears >= 6 && !i140ok && !permFiledLongAgo) {
-    return reject(s, c, card, 'Denied: you have used all 6 years of H-1B time. You can only extend past 6 years if your PERM was filed over a year ago or your I-140 is approved.', null);
-  }
-  removeFromHand(s, c.uid);
-  const fee = feeFor(s, card);
-  s.stats.feesEmployer += fee;
-  const add = usedYears >= 6 && !i140ok ? 1 : 3;
-  s.h1b.expire += add;
-  addHistory(s, '🔁', `H-1B extended ${add} more year${add > 1 ? 's' : ''}`);
-  const why = usedYears >= 6 ? (i140ok ? ' Going past 6 years is only possible because your I-140 is approved (a law called AC21).' : ' Because your PERM was filed over a year ago, the law (AC21) allows a 1-year extension past 6 years. Get your I-140 approved to extend 3 years at a time!') : '';
-  return { ok: true, kind: 'approved', stamp: 'EXTENDED', title: 'H-1B extended!', text: `Your employer paid ${fmtMoney(fee)}. Your H-1B is now good through ${START_CAL + s.h1b.expire - 1}.${why}` };
+  return { kind: 'filed', stamp: 'SENT', title: 'Sent!', text: `${paid} You'll hear back next turn.` };
 }
 
 function useAction(s, c, card) {
-  const cost = (card.cost && card.cost[s.track]) || 0;
-  const k = card.effect.kind;
-  const nextHidden = (n) => {
+  const cost = card.cost?.[s.track] ?? 0;
+  const pay = () => { if (cost) { s.money -= cost; s.stats.feesYou += cost; } takeFromHand(s, c.uid); };
+  const reveal = (n) => {
     const out = [];
     for (const order of [s.order, ...(s.flags.sponsored ? [s.permOrder] : [])]) {
       for (const id of order) {
         const st = s.steps[id];
-        if (st.status !== 'approved' && !st.revealed && out.length < n) { st.revealed = true; out.push(stepDef(id).label); }
+        const t = stepDef(id);
+        if (st.status !== 'approved' && !st.shown && t.card && out.length < n) { st.shown = true; out.push(CARDS[t.card].name); }
       }
     }
     return out;
   };
-  const pay = () => { if (cost) { s.money -= cost; s.stats.feesYou += cost; } removeFromHand(s, c.uid); };
-  switch (k) {
-    case 'lawyer': {
+  switch (card.effect) {
+    case 'lawyer': { pay(); s.flags.shield = true; const r = reveal(2); return { kind: 'help', title: 'Lawyer hired', text: `${cost ? `You paid ${money$(cost)}. ` : ''}${r.length ? `Coming up: ${r.join(' → ')}. ` : ''}Your next mistake will be caught.` }; }
+    case 'clinic': { pay(); const r = reveal(1); return { kind: 'help', title: 'Free legal clinic', text: r.length ? `A volunteer lawyer says your next step is "${r[0]}".` : 'The clinic says you\'re on the right track.' }; }
+    case 'organize': pay(); s.flags.organize = true; return { kind: 'help', title: 'Organized!', text: 'Your next pack will have the form you need.' };
+    case 'fast': {
       pay();
-      s.flags.shield++;
-      const rev = nextHidden(2);
-      return { ok: true, kind: 'action', title: 'Lawyer hired', text: `You paid ${fmtMoney(cost)}. ${rev.length ? `Your lawyer mapped out your next steps: ${rev.join(' → ')}.` : 'Your path is already clear.'} Your next filing mistake will be caught.` };
+      const target = ['visa', 'line', 'perm'].find((id) => s.steps[id]?.status === 'pending');
+      if (target) { const notes = []; const stamp = approve(s, target, notes); return { kind: 'approved', stamp, title: 'Fast Track!', text: `Your boss paid $2,965 to speed it up. ${notes.map((n) => n.text).join(' ')}` }; }
+      s.flags.fast = true;
+      return { kind: 'help', title: 'Fast Track ready', text: 'The next form your boss sends will be decided right away.' };
     }
-    case 'legalaid': {
-      pay();
-      const rev = nextHidden(1);
-      return { ok: true, kind: 'action', title: 'Free legal clinic', text: rev.length ? `A volunteer lawyer explains your next step: ${rev[0]}.` : 'The clinic confirms your plan is on track.' };
-    }
-    case 'organize':
-      pay();
-      s.flags.organize = true;
-      return { ok: true, kind: 'action', title: 'Organized!', text: 'Next year’s pack will include the form you need.' };
-    case 'premium': {
-      pay();
-      const target = ['h1b', 'i140'].find((id) => s.steps[id].status === 'pending');
-      if (target) {
-        const lines = [];
-        const stamp = approve(s, target, lines);
-        return { ok: true, kind: 'approved', stamp, title: 'Premium processing', text: `Your employer paid $2,965 to speed things up. ${lines.map((l) => l.text).join(' ')}` };
-      }
-      s.flags.premium = true;
-      return { ok: true, kind: 'action', title: 'Premium processing ready', text: 'Your next H-1B Petition or I-140 will be decided right away. Your employer pays $2,965.' };
-    }
-    case 'notario':
-      pay();
-      s.stats.scammed = true;
-      s.hand.push(inst('rejection-notice', { ttl: 1 }));
-      s.stats.waitCards++;
-      addHistory(s, '🚩', 'Lost money to a “notario” scam');
-      return { ok: false, kind: 'rejected', stamp: 'SCAM', title: 'It was a scam!', text: `The “notario” took your ${fmtMoney(cost)} and filed the wrong papers. In the U.S., a notary public is NOT a lawyer and can’t give legal advice. Real help comes from licensed lawyers or DOJ-accredited representatives.` };
-    case 'knowrights':
-      pay();
-      s.flags.knowRights = true;
-      return { ok: true, kind: 'action', title: 'You know your rights', text: 'You learned what H-2A employers must provide: the required wage, free housing, travel costs, and pay for at least 3/4 of the promised hours. You’re ready if something goes wrong.' };
-    case 'portfolio': {
-      if (s.steps.i140.status !== 'approved') return { ok: false, kind: 'info', title: 'Not yet', text: 'You need an approved I-140 first. Keep this card.' };
-      pay();
-      s.flags.portfolio = true;
-      if (s.chart === 'india') {
-        s.chart = 'india-eb1';
-        addHistory(s, '🏆', 'Upgraded to the EB-1 line');
-        return { ok: true, kind: 'approved', stamp: 'EB-1', title: 'Upgraded to EB-1!', text: `Your employer filed a new EB-1 petition. You keep your priority date (${fmtDate(s.pd)}) but move into the EB-1 India line, now at ${fmtDate(s.bulletin['india-eb1'])}.` };
-      }
-      return { ok: true, kind: 'action', title: 'EB-1 filed', text: 'Your line was already short, so the upgrade doesn’t change much for you.' };
-    }
-    case 'canada':
-      pay();
-      s.status = 'canada';
-      addHistory(s, '🍁', 'Moved to Canada through Express Entry');
-      s.over = true;
-      s.outcome = 'canada';
-      return { ok: true, kind: 'approved', stamp: 'CANADA', title: 'Welcome to Canada', text: 'You gave up your place in the U.S. line and moved to Canada as a permanent resident.' };
-    case 'sponsor':
-      pay();
-      s.flags.sponsored = true;
-      s.chart = 'mexico-eb3';
-      s.steps.pperm.revealed = true;
-      addHistory(s, '🐄', 'A year-round employer offered to sponsor a green card');
-      return { ok: true, kind: 'approved', stamp: 'SPONSOR', title: 'A permanent path opens', text: 'A dairy farm will sponsor you for an EB-3 green card. A new row has appeared on your Paper Trail: PERM → I-140 → Visa Bulletin → Immigrant Visa. You keep working seasons while you wait.' };
-    default:
-      return { ok: false, text: 'Nothing happens.' };
+    case 'rights': pay(); s.flags.knowRights = true; return { kind: 'help', title: 'You know your rights', text: 'You learned what farms must give you: fair pay, free housing, travel costs, and water and rest in the heat.' };
+    default: return { kind: 'info', text: 'Nothing happens.' };
   }
 }
 
-export function discardCard(s, uid) {
-  const c = s.hand.find((h) => h.uid === uid);
+export function discard(s, u) {
+  const c = s.hand.find((h) => h.uid === u);
   if (!c || CARDS[c.id].type === 'wait') return false;
-  removeFromHand(s, uid);
+  takeFromHand(s, u);
   return true;
 }
 
-// ───────────────────────────── choices ─────────────────────────────
-export function choiceInfo(s) {
-  const ch = s.pendingChoice;
-  if (!ch) return null;
-  if (ch.id === 'job-offer') {
-    if (s.status === 'gc' || s.status === 'citizen') {
-      return { id: ch.id, title: 'Better Job Offer', icon: '💼', text: 'A company offers you 30% more pay. With a green card, you can switch jobs freely!', options: [{ key: 'switch', label: 'Take the job (+$3,000/yr)' }, { key: 'stay', label: 'Stay where you are' }] };
-    }
-    const kept = s.steps.i140.status === 'approved';
-    return {
-      id: ch.id, title: 'Better Job Offer', icon: '💼',
-      text: `A company offers you 30% more pay. On an H-1B, switching jobs means your new employer must restart PERM and the I-140. ${kept ? 'Because your I-140 is approved, you would KEEP your priority date.' : 'You have no approved I-140 yet, so you would lose your progress toward a green card.'}`,
-      options: [{ key: 'switch', label: 'Switch jobs (+$3,000/yr, restart PERM)' }, { key: 'stay', label: 'Stay and keep your progress' }],
-    };
-  }
-  if (ch.id === 'opt-end') {
-    return {
-      id: ch.id, title: 'Your work permit is ending', icon: '🎓',
-      text: 'You weren’t picked in the H-1B lottery before your 3 years of OPT ran out. Without a new status, you must leave the U.S. Many people in this spot go back to school for another degree just to keep trying.',
-      options: [{ key: 'school', label: 'Go back to school (−$30,000 tuition, keep entering the lottery)' }, { key: 'home', label: 'Move back home (your U.S. journey ends)' }],
-    };
-  }
-  return null;
+// ───────────────────────────── decisions ─────────────────────────────
+export function pickDilemma(s) {
+  if (s.dilemma) return DILEMMAS.find((d) => d.id === s.dilemma);
+  const r = rng(s);
+  const pool = DILEMMAS.filter((d) => !d.forced && (d.track === 'all' || d.track === s.track) && !s.used.includes(d.id) && d.when(s));
+  if (!pool.length) return null;
+  const d = r.weighted(pool, (x) => x.weight || 1);
+  s.dilemma = d.id;
+  saveRng(s, r);
+  return d;
 }
 
-export function resolveChoice(s, key) {
-  const ch = s.pendingChoice;
-  s.pendingChoice = null;
-  if (!ch) return null;
-  if (ch.id === 'job-offer') {
-    if (key === 'stay') return { title: 'You stayed', text: 'You kept your job and your green card progress. Many H-1B workers turn down better jobs for this reason.' };
-    s.incomeBonus += 3000;
-    if (s.status === 'gc' || s.status === 'citizen') {
-      addHistory(s, '💼', 'Switched to a better job');
-      return { title: 'New job!', text: 'Green card holders can change jobs without any new immigration paperwork.' };
-    }
-    if (s.status !== 'h1b') {
-      addHistory(s, '💼', 'Switched to a better job');
-      return { title: 'New job!', text: 'Your new employer took over your OPT job. You got a raise.' };
-    }
-    if (s.steps.i485.status === 'pending') {
-      addHistory(s, '💼', 'Switched jobs using green card portability (AC21)');
-      return { title: 'New job!', text: 'Because your green card application was already filed, a law called AC21 lets you switch to a similar job without starting over. Nice timing!' };
-    }
-    const kept = s.steps.i140.status === 'approved';
-    if (kept) s.keptPd = s.pd;
-    else s.pd = null;
-    for (const id of ['perm', 'i140', 'bulletin']) Object.assign(s.steps[id], { status: 'todo', timer: 0, missing: [] });
-    addHistory(s, '💼', `Switched jobs; PERM & I-140 restarted${kept ? ' (kept priority date)' : ''}`);
-    return { title: 'New job!', text: `Your new employer filed an H-1B transfer. You got a raise, but PERM and the I-140 must be done again.${kept ? ' You kept your priority date.' : ''}` };
-  }
-  if (ch.id === 'opt-end') {
-    if (key === 'school') {
-      s.money -= 30000;
-      s.status = 'student';
-      addHistory(s, '🎓', 'Went back to school to stay in the U.S.');
-      return { title: 'Back to school', text: 'You enrolled in another degree program (−$30,000). You can keep entering the H-1B lottery, but you earn less while studying.' };
-    }
-    s.status = 'left';
-    s.over = true;
-    s.outcome = 'left';
-    addHistory(s, '✈️', 'Work permit ran out; moved back home');
-    return { title: 'Moving home', text: 'Your student work permit ran out. Your U.S. journey ends here.' };
-  }
-  return null;
+export function resolveDilemma(s, key) {
+  const d = DILEMMAS.find((x) => x.id === s.dilemma);
+  if (!d) return null;
+  const opt = d.options.find((o) => o.key === key);
+  const r = rng(s);
+  const h = {
+    money: (n) => { s.money += n; },
+    addCard: (id) => { const card = CARDS[id]; s.hand.push(inst(id, card.type === 'wait' ? { ttl: card.ttl } : {})); if (card.type === 'wait') s.stats.waitCards++; },
+    history: (icon, text) => history(s, icon, text),
+    restartGreenCard: () => restartGreenCard(s),
+    end: (outcome) => { s.over = true; s.outcome = outcome; s.status = outcome; },
+    sponsor: () => { s.flags.sponsored = true; s.chart = 'mexico-eb3'; },
+  };
+  const text = opt.apply(s, h, r);
+  s.used.push(d.id);
+  s.dilemma = null;
+  saveRng(s, r);
+  return { title: opt.label, text };
 }
 
-// ───────────────────────────── end of year ─────────────────────────────
-export function endYear(s) {
+// ───────────────────────────── end of turn ─────────────────────────────
+export function endTurn(s) {
   const lines = [];
-  const r = rngOf(s);
+  const add = (icon, text, amt) => { lines.push({ icon, text, amt }); if (amt) s.money += amt; };
   if (s.track === 'h1b') {
-    const base = { opt: 5000, student: -8000, h1b: 8000, gc: 9000, citizen: 9000, left: 2000 }[s.status] ?? 0;
-    const inc = base + (['h1b', 'gc', 'citizen'].includes(s.status) ? s.incomeBonus : 0);
-    s.money += inc;
-    if (inc > 0) s.stats.earned += inc;
-    log(lines, inc >= 0 ? '💼' : '🎓', `${inc >= 0 ? 'Salary left after taxes, rent & living costs' : 'Living costs while studying'}: ${inc >= 0 ? '+' : ''}${fmtMoney(inc)}`, inc >= 0 ? 'good' : 'bad');
+    const base = { opt: 6000, student: -8000, h1b: 11000, gc: 12000 }[s.status] ?? 0;
+    const bonus = ['h1b', 'gc'].includes(s.status) ? s.incomeBonus : 0;
+    if (base) add(base > 0 ? '💼' : '🎓', base > 0 ? 'Pay left after rent, taxes & food' : 'Living costs while in school', base + bonus);
   } else {
     if (s.status === 'season') {
-      let pay = Math.round(16000 * s.wageMult * s.seasonMult) + s.seasonBonus;
-      s.seasons++;
-      s.workedLast = true;
-      log(lines, '🧺', `Season wages (after food & phone costs): +${fmtMoney(pay)}`, 'good');
-      const reimb = Math.round(CARDS.ds160.fee.amt * s.feeMult);
-      if (!s.steps.visa.auto) { s.money += reimb; log(lines, '↩️', `Your employer paid you back for visa & border fees in your first week, as H-2A rules require: +${fmtMoney(reimb)}`, 'good'); }
-      if (r.chance(0.25)) {
-        if (s.flags.knowRights) log(lines, '⚖️', 'Your paycheck was short $1,500 — but you knew your rights, reported it, and got it back.', 'good');
-        else { pay -= 1500; log(lines, '⚠️', 'Missing wages: your employer shorted your pay by $1,500. (A “Know Your Rights” card would have helped.)', 'bad'); addHistory(s, '⚠️', 'Lost $1,500 to unpaid wages'); }
-      }
-      if (s.remitTax) {
-        const tax = Math.round(pay * s.remitTax);
-        pay -= tax;
-        log(lines, '🏦', `1% tax on money sent home: −${fmtMoney(tax)}`, 'bad');
-      }
-      s.money += pay;
-      s.stats.earned += pay;
-      addHistory(s, '🧺', `Worked season #${s.seasons} in the U.S.`);
-      log(lines, '🚌', 'The season is over. H-2A is temporary, so you return home to Mexico.', 'info');
+      const pay = Math.round(16000 * s.wageMult * s.season.mult) + s.season.bonus - (s.flags.seasonCut || 0);
+      s.flags.seasonCut = 0;
+      s.seasons++; s.workedLast = true;
+      add('🧺', `Harvest pay (season #${s.seasons})`, pay);
+      if (!s.steps.interview.auto) add('↩️', 'Farm paid back your visa & border fees', CARDS['visa-interview'].fee + CARDS.border.fee);
+      if (s.remitTax && !s.flags.bank) add('🏦', '1% tax on cash sent home', -Math.round(pay * 0.01));
+      add('🚌', 'Season over. The H-2A visa is temporary, so you ride home.', 0);
       s.status = 'home';
+      s.tags.push('season');
+      history(s, '🧺', `Worked harvest season #${s.seasons}`);
     } else {
       s.workedLast = false;
-      s.stats.seasonsMissed++;
-      s.money += 2500;
-      log(lines, '🏠', 'You missed the U.S. season. Local work at home: +$2,500', 'bad');
-      addHistory(s, '🏠', 'Missed the season');
+      s.flags.seasonCut = 0;
+      s.tags.push('missed');
+      add('🏠', 'Missed the U.S. season. Local work at home', 2500);
+      history(s, '🏠', 'Missed the harvest season');
     }
-    s.money -= 6000;
-    log(lines, '👨‍👩‍👧‍👦', 'Family living costs for the year: −$6,000', 'info');
+    add('👨‍👩‍👧‍👦', 'Family costs for the year', -6000);
   }
-  if (s.money < 0) {
-    const interest = Math.round(-s.money * 0.08);
-    s.money -= interest;
-    log(lines, '💳', `You’re in debt. Interest on borrowed money: −${fmtMoney(interest)}`, 'bad');
-  }
-
-  // Requests for Evidence that ran out of time
-  for (const t of allSteps(s)) {
-    const st = s.steps[t.id];
-    if (st.status === 'rfe' && s.year >= st.deadline) {
-      Object.assign(st, { status: 'todo', missing: [] });
-      log(lines, '❌', `${t.label} was DENIED because the missing evidence never arrived. You must file again with a new form card.`, 'bad');
-      addHistory(s, '❌', `${t.label} denied (missing evidence)`);
-    }
-  }
-  // Wait cards count down; medical exams expire
-  s.hand = s.hand.filter((h) => {
-    if (h.ttl === undefined) return true;
-    h.ttl -= 1;
-    return h.ttl > 0;
-  });
-  s.folder = s.folder.filter((f) => {
-    if (f.expires && f.expires <= s.year) {
-      log(lines, '🩺', `Your ${CARDS[f.id].title} expired.`, 'bad');
-      return false;
-    }
-    return true;
-  });
-  // Visa running out
-  if (s.track === 'h1b' && s.status === 'h1b' && s.year >= s.h1b.expire) {
-    s.status = 'left';
-    s.over = true;
-    s.outcome = 'expired';
-    log(lines, '✈️', 'Your H-1B ran out without an extension. You had to leave the United States.', 'bad');
-    addHistory(s, '✈️', 'H-1B expired; had to leave the U.S.');
-  }
-  saveRng(s, r);
+  s.hand = s.hand.filter((h) => { if (h.ttl === undefined) return true; h.ttl -= 1; return h.ttl > 0; });
   s.phase = 'end';
-  return { lines, over: s.over || s.year >= MAX_YEARS, handOver: Math.max(0, s.hand.filter((h) => CARDS[h.id].type !== 'wait').length + s.hand.filter((h) => CARDS[h.id].type === 'wait').length - HAND_LIMIT) };
+  return lines;
 }
 
-export function handExcess(s) {
-  return Math.max(0, s.hand.length - HAND_LIMIT);
-}
-export function discardable(s) {
-  return s.hand.filter((h) => CARDS[h.id].type !== 'wait');
-}
+export const handOver = (s) => Math.max(0, s.hand.length - HAND_LIMIT);
+export const discardable = (s) => s.hand.filter((h) => CARDS[h.id].type !== 'wait');
 
-// ───────────────────────────── draft ─────────────────────────────
-export function draftOptions(s) {
-  if (s.draftOpts) return s.draftOpts;
-  const r = rngOf(s);
-  const pool = [];
-  const add = (id, w) => pool.push({ id, w });
-  if (s.track === 'h1b') {
-    const done = ['gc', 'citizen'].includes(s.status);
-    add('organize', 3);
-    if (!done) { add('lawyer', 2); add('legal-aid', 1.2); }
-    if (['h1b', 'i140'].some((id) => s.steps[id].status === 'pending' || (s.steps[id].status === 'todo' && s.status !== 'gc'))) add('premium', 1.5);
-    add('savings', 2);
-    for (const d of ['lca', 'pwd', 'birth-cert', 'medical']) if (!hasDoc(s, d) && !done) add(d, d === 'medical' && s.steps.i140.status !== 'approved' ? 0.6 : 2);
-    if (done && !hasDoc(s, 'civics')) add('civics', 3);
-    if (s.steps.bulletin.status === 'waiting' && s.chart === 'india' && !s.flags.portfolio) add('portfolio', 2);
-    if (s.year >= 5 && !done && s.steps.bulletin.status === 'waiting') add('canada', 1.3);
-  } else {
-    add('organize', 3);
-    add('lawyer', 0.8);
-    add('legal-aid', 1);
-    if (!s.flags.knowRights) add('know-rights', 2);
-    add('extra-shift', 2);
-    if (s.seasons >= 3 && !s.flags.sponsored) add('sponsor', 0.15);
-    if (s.flags.sponsored) for (const d of ['pwd', 'birth-cert', 'medical']) if (!hasDoc(s, d)) add(d, 2);
-  }
-  const opts = [];
-  while (opts.length < 3 && pool.length) {
-    const pick = r.weighted(pool, (p) => p.w);
-    opts.push(pick.id);
-    pool.splice(pool.indexOf(pick), 1);
-  }
-  s.draftOpts = opts;
-  saveRng(s, r);
-  return opts;
-}
-
-export function takeDraft(s, id) {
-  const card = CARDS[id];
-  s.phase = 'sync';
-  const c = inst(id);
-  return collectCard(s, c);
-}
-
-export function nextYear(s) {
-  if (s.year >= MAX_YEARS || s.over) {
-    s.over = true;
-    s.phase = 'over';
-    if (!s.outcome) s.outcome = s.status;
-    return false;
-  }
-  s.year += 1;
+export function nextTurn(s) {
+  if (s.over || s.turn >= TURNS) { s.over = true; s.phase = 'over'; s.outcome = s.outcome || s.status; return false; }
+  s.turn++;
   return true;
 }
 
-export function yearLabel(s) {
-  return cal(s);
-}
-
-// ───────────────────────────── summaries ─────────────────────────────
 export function progress(s) {
   const order = s.order.filter((id) => stepDef(id).kind !== 'season');
-  const done = order.filter((id) => s.steps[id].status === 'approved').length;
-  return { done, total: order.length };
-}
-
-export function scoreLine(s) {
-  const ch = CHARACTERS[s.charId];
-  return `${ch.name} · ${SECURITY_LABELS[security(s)]} · ${fmtMoney(s.money)}`;
+  return { done: order.filter((id) => s.steps[id].status === 'approved').length, total: order.length };
 }

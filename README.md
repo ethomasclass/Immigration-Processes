@@ -2,7 +2,7 @@
 
 A 20-minute classroom deckbuilding game about U.S. immigration pathways, built for Chromebooks and hosted on GitHub Pages.
 
-Students play a fictional immigrant: **Priya** (India, H-1B → green card), **Lukas** (Germany, same path), or **Marco** (Mexico, H-2A seasonal guest worker). Each year they open a pack of cards, then file forms on their "Paper Trail" in the right order. They have to manage documents, fees, lotteries, backlogs and waiting lines.
+Students play a made-up immigrant: **Priya** (India, H-1B → green card), **Lukas** (Germany, same path), or **Marco** (Mexico, H-2A seasonal guest worker). Over 8 turns they read texts from home, tear open card packs, play forms onto their road in the right order, and make one hard choice each turn. Cards use plain names ("Get in Line") with the real form number printed small ("Form I-140").
 
 Partners sit side by side on separate computers and type the same **table code**. The code sets that game's world events, so both games stay in sync with no network connection.
 
@@ -32,10 +32,12 @@ python3 -m http.server 8080
 
 | Path | What it is |
 |---|---|
-| `js/engine.js` | Game rules: years, packs, filing, lotteries, the Visa Bulletin, seasons |
+| `js/engine.js` | Game rules: turns, packs, filing, lotteries, the Now Serving line, seasons |
+| `js/art.js` | Hand-drawn SVG card art, portraits and card backs |
+| `js/data/dilemmas.js` | The one-per-turn decisions |
 | `js/data/cards.js` | Every card, including the 8th-grade educational text |
-| `js/data/characters.js` | The three characters |
-| `js/data/scenarios.js` | Table codes and the yearly news events |
+| `js/data/characters.js` | The three characters and their texts from home |
+| `js/data/scenarios.js` | Table codes and each turn's news |
 | `js/main.js` | Screens, pack opening, drag-and-drop, and the end screen |
 | `js/fx.js` | Particles, stamps and synthesized sounds (no audio files) |
 | `tests/simulate.mjs` | Plays hundreds of automated games to check balance (`node tests/simulate.mjs`) |

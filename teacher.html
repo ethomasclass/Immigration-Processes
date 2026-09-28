@@ -3,191 +3,166 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Paper Trail · Teacher Guide</title>
+  <title>Paper Trail Teacher Guide</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@800;900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
-    :root { --ink: #0f172a; --muted: #475569; --line: #e2e8f0; --gold: #b7791f; --bg: #f8fafc; --card: #ffffff; --accent: #1d4ed8; }
+    :root { --ink: #1b1a1f; --ink-2: #4a4550; --paper: #f6f0e2; --paper-2: #ece3cc; --yellow: #ffd84a; --pink: #ff5fa2; --blue: #2f6fd6; --green: #1fa463; --mat: #174a44; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, 'Segoe UI', system-ui, sans-serif; }
-    header { background: #0a1020; color: #fff; padding: 36px 16px 30px; }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
-    header .kicker { font-family: 'JetBrains Mono', monospace; letter-spacing: .16em; font-size: 12px; color: #f5c451; }
-    h1, h2, h3 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; line-height: 1.15; }
-    header h1 { font-size: clamp(32px, 5vw, 48px); margin: 8px 0; }
-    header p { color: #cbd5e1; max-width: 700px; margin: 0; }
-    header a.btn { display: inline-block; margin-top: 18px; background: #f5c451; color: #1a1405; padding: 10px 18px; border-radius: 999px; font-weight: 700; text-decoration: none; }
-    main { padding: 28px 0 60px; }
-    section { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; margin: 18px 0; }
-    h2 { font-size: 26px; margin: 0 0 10px; }
-    h3 { font-size: 19px; margin: 18px 0 6px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
-    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-    code, .code { font-family: 'JetBrains Mono', monospace; background: #f1f5f9; border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-weight: 700; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-    .box { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fcfdff; }
-    .box b { display: block; }
-    .timeline { display: grid; grid-template-columns: 90px 1fr; gap: 6px 14px; }
-    .timeline .t { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); }
-    .note { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 14px; padding: 14px 16px; }
-    .warn { background: #fef2f2; border-color: #fca5a5; }
-    ul li, ol li { margin: 4px 0; }
-    .muted { color: var(--muted); }
-    .sm { font-size: 14px; }
-    a { color: var(--accent); }
-    @media print {
-      header { background: none; color: #000; padding: 0; }
-      header p { color: #000; }
-      header a.btn, .noprint { display: none; }
-      section { break-inside: avoid; border: none; padding: 8px 0; }
-      body { background: #fff; }
-    }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 'Atkinson Hyperlegible', Verdana, sans-serif; }
+    h1, h2, h3 { font-family: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif; font-weight: 900; text-transform: uppercase; line-height: .95; margin: 0; text-wrap: balance; }
+    header { background: var(--mat); color: var(--paper); padding-block: 40px 34px; border-bottom: 4px solid var(--ink); }
+    .wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; }
+    header h1 { font-size: clamp(48px, 8vw, 88px); text-shadow: 5px 5px 0 var(--pink); }
+    header p { max-width: 62ch; font-size: 19px; }
+    .btn { display: inline-block; margin-top: 10px; font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 800; font-size: 22px; text-transform: uppercase; background: var(--yellow); color: var(--ink); text-decoration: none; border: 3px solid var(--ink); border-radius: 12px; padding: 6px 18px 8px; box-shadow: 0 4px 0 var(--ink); }
+    main { padding-block: 28px 60px; }
+    section { background: #fff; border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink); padding: 20px 24px; margin-block: 22px; }
+    h2 { font-size: 36px; margin-bottom: 10px; }
+    h3 { font-size: 24px; margin: 18px 0 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+    .scroll { overflow-x: auto; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 2px dotted #cfc6b1; vertical-align: top; }
+    th { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+    code { font-family: 'IBM Plex Mono', monospace; background: var(--yellow); border: 2px solid var(--ink); border-radius: 6px; padding: 0 6px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+    .box { border: 3px solid var(--ink); border-radius: 14px; padding: 12px 14px; background: var(--paper); }
+    .box b { font-family: 'Big Shoulders Display', Impact, sans-serif; font-weight: 900; font-size: 21px; text-transform: uppercase; display: block; }
+    .run { display: grid; grid-template-columns: 70px 1fr; gap: 8px 14px; }
+    .run .t { font-family: 'IBM Plex Mono', monospace; font-weight: 500; background: var(--ink); color: var(--yellow); border-radius: 8px; text-align: center; height: fit-content; padding: 2px 0; }
+    .note { background: #ffe9e6; }
+    .sm { font-size: 15px; }
+    .muted { color: var(--ink-2); }
+    a { color: var(--blue); }
+    li { margin: 4px 0; }
+    @media print { header { background: none; color: var(--ink); } header h1 { text-shadow: none; } .btn, .noprint { display: none; } section { box-shadow: none; break-inside: avoid; } }
   </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <div class="kicker">PAPER TRAIL · TEACHER GUIDE</div>
-    <h1>A 20-minute immigration card game</h1>
-    <p>Students play a fictional immigrant on their own Chromebook, side by side with a partner. They open card packs, collect forms and documents, and file them in the right order. Along the way they learn how U.S. immigration pathways actually work, and why two people doing the same things can have very different outcomes.</p>
-    <a class="btn" href="index.html">▶ Open the game</a>
-  </div>
-</header>
+<header><div class="wrap">
+  <h1>Paper Trail<br>Teacher Guide</h1>
+  <p>A 20-minute card game. Students play a made-up immigrant on their own Chromebook, next to a partner. They open packs, put forms in order, and make one hard choice each turn. Students leave knowing the process is hard to navigate, without having to memorize every form.</p>
+  <a class="btn" href="index.html">Open the game</a>
+</div></header>
 <main class="wrap">
 
   <section>
     <h2>Learning goals</h2>
-    <p>Students will be able to:</p>
     <ol>
-      <li><b>Sequence</b> the main steps of two real pathways: an employment-based green card (H-1B → PERM → I-140 → Visa Bulletin → I-485 → citizenship) and the H-2A seasonal guest worker program.</li>
-      <li><b>Identify</b> which agency handles each step (USCIS, Department of Labor, State Department, CBP) and who files it (the worker or the employer).</li>
-      <li><b>Explain</b> how per-country caps, lotteries, fees, processing backlogs and job ties affect how long immigration takes.</li>
-      <li><b>Evaluate</b> an immigration policy using evidence from their own play: who benefits, who waits, and what they would change.</li>
+      <li><b>Describe</b> the main steps of two legal paths: a skilled worker visa that can lead to a green card (H-1B), and a seasonal farm worker visa (H-2A) that does not.</li>
+      <li><b>Explain</b> why the process is hard: lotteries, missing papers, rejections, fees, employer control and long waiting lines.</li>
+      <li><b>Compare</b> how country of birth changes the wait (the 7% per-country limit).</li>
+      <li><b>Evaluate</b> one immigration rule using evidence from the game.</li>
     </ol>
-    <p class="sm muted">Connects to the C3 Framework: D2.Civ.13.6-8 (purposes, implementation and consequences of public policies), D2.Civ.12.6-8 (laws and rights), D2.Geo.8.6-8 (human migration), D2.Eco.1.6-8 (costs and benefits of decisions).</p>
+    <p class="sm muted">Connects to the C3 Framework: D2.Civ.13.6-8 (public policy), D2.Geo.8.6-8 (migration), D2.Eco.1.6-8 (costs and benefits of choices).</p>
   </section>
 
   <section>
-    <h2>Run of show (about 20 minutes)</h2>
-    <div class="timeline">
-      <div class="t">0:00</div><div><b>Set up (2 min).</b> Put the table code on the board (for example, <code>MAPLE</code>). Students pair up, open the game, type their first name and the code, and pick a character. Assign pairings (below) so partners compare different characters.</div>
-      <div class="t">0:02</div><div><b>Year 1 together (3 min).</b> Everyone reads the intro, opens their first pack, and files their first form. Yellow tip bubbles guide the first year.</div>
-      <div class="t">0:05</div><div><b>Play (10 min).</b> 12 years, about 45–60 seconds each. At each year's end, the game shows a "Partner check" screen. Partners wait for each other, compare, then start the next year together.</div>
-      <div class="t">0:15</div><div><b>Debrief (5 min).</b> Collect end-screen results on a class chart (each student reads out their one-line summary). Use the discussion questions below.</div>
+    <h2>Run of show · 20 minutes</h2>
+    <div class="run">
+      <div class="t">0:00</div><div><b>Set up (2 min).</b> Write a table code on the board, like <code>MAPLE</code>. Partners sit together, type the same code, and pick different players.</div>
+      <div class="t">0:02</div><div><b>Turn 1 together (3 min).</b> Yellow tip bubbles walk students through opening a pack and playing the first card.</div>
+      <div class="t">0:05</div><div><b>Play turns 2–8 (10 min).</b> About 1.5 minutes per turn. Each turn: read the phone, open a pack, play cards, make one choice, check in with your partner.</div>
+      <div class="t">0:15</div><div><b>Talk (5 min).</b> Students read their one-line result aloud for a class chart. Use the questions below.</div>
     </div>
-    <p class="sm muted">Short on time? Stop after Year 8. The Priya/Lukas gap is already clear by then.</p>
   </section>
 
   <section>
-    <h2>Table codes (scenarios)</h2>
-    <p>Partners must type the <b>same code</b>. The code sets the "world news" for each year, and for Priya and Lukas it also sets the lottery results. That way both computers run the same scenario without any internet connection between them. Card packs are still random for each player. You can also share a link with the code built in, for example <code>index.html?code=CEDAR</code>.</p>
-    <table>
-      <thead><tr><th>Code</th><th>Name</th><th>What it highlights</th></tr></thead>
+    <h2>How a turn works</h2>
+    <div class="grid">
+      <div class="box"><b>📱 Phone</b>Each turn starts with news, a text from family, and updates from the government ("Case approved!").</div>
+      <div class="box"><b>🃏 Pack</b>Students tear open a pack of 4 cards: forms, papers, money, bills, help, and "stuck" wait cards.</div>
+      <div class="box"><b>🛣️ Road</b>Students drag forms onto their road in order. The glowing space shows the next step. Later steps stay hidden, and playing one too early gets it <b>rejected</b> and loses the fee.</div>
+      <div class="box"><b>🔔 Now Serving</b>Once a player gets a ticket number, a deli-style sign shows how far the green card line has moved. Priya's sign still shows 2014.</div>
+      <div class="box"><b>⚖️ Decision</b>One real dilemma per turn: fly home to see a sick grandparent? Report missing pay? Pay a "notario"?</div>
+      <div class="box"><b>🤝 Partner check</b>At the end of each turn, partners compare status and money before moving on.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The two roads</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Skilled worker (Priya &amp; Lukas)</th><th>Real form</th><th>Farm worker (Marco)</th><th>Real form</th></tr></thead>
       <tbody>
-        <tr><td><code>MAPLE</code></td><td>Steady Times</td><td><b>Best first game.</b> Few surprises. Priya and Lukas both win the H-1B lottery on the first try, so the only difference between them is country of birth.</td></tr>
-        <tr><td><code>CEDAR</code></td><td>Luck of the Draw</td><td>Lukas loses the lottery twice while Priya wins right away. Priya leads early, but the per-country backlog usually lets Lukas pass her later.</td></tr>
-        <tr><td><code>RIVER</code></td><td>Boom and Bust</td><td>Layoffs in Year 7. A green card protects you; an H-1B tied to one job does not (60-day grace period, restarting PERM).</td></tr>
-        <tr><td><code>SUMMIT</code></td><td>Policy Shake-Up</td><td>The $100,000 H-1B fee court fight, the weighted lottery, fee increases, farm-wage rule changes, the remittance tax and Visa Bulletin retrogression. Good for "policy changes mid-game" discussions.</td></tr>
-        <tr><td><code>HARBOR</code></td><td>Long Lines</td><td>Processing slowdowns, consulate backlogs and retrogression.</td></tr>
-        <tr><td><code>PRAIRIE</code></td><td>Harvest Seasons</td><td>Built around the H-2A guest worker: heat waves, drought, interview waivers and wage rules.</td></tr>
-        <tr><td><i>anything else</i></td><td>Custom</td><td>Any other code (like <code>ROOM12</code>) makes a random scenario that repeats the same way for everyone who types it.</td></tr>
+        <tr><td>Lottery Ticket</td><td>H-1B registration</td><td>Farm Asks Permission</td><td>ETA-9142A</td></tr>
+        <tr><td>Work Visa Request</td><td>I-129</td><td>Farm's Worker Request</td><td>I-129 (H-2A)</td></tr>
+        <tr><td>Prove No American Applied</td><td>PERM</td><td>Visa Interview</td><td>DS-160</td></tr>
+        <tr><td>Get in Line (ticket number)</td><td>I-140</td><td>Border Crossing</td><td>I-94</td></tr>
+        <tr><td>Now Serving (wait)</td><td>Visa Bulletin</td><td>Harvest, then go home</td><td>—</td></tr>
+        <tr><td>Green Card Application</td><td>I-485</td><td>(Rare) year-round job → green card road</td><td>PERM, I-140, DS-260</td></tr>
       </tbody>
-    </table>
+    </table></div>
+    <p class="sm muted">Cards use plain names. The real form number is printed small on each card, so students see it without needing to learn it.</p>
   </section>
 
   <section>
-    <h2>Characters & recommended pairings</h2>
+    <h2>Table codes</h2>
+    <p>The code sets each turn's news and, for Priya and Lukas, the lottery results. Both computers run the same scenario with no internet link. Card packs are still random. You can share a link with the code built in: <code>index.html?code=CEDAR</code>.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Code</th><th>Name</th><th>What it shows</th></tr></thead>
+      <tbody>
+        <tr><td><code>MAPLE</code></td><td>Steady Times</td><td><b>Start here.</b> Priya and Lukas both win the lottery right away, so the only difference is where they were born.</td></tr>
+        <tr><td><code>CEDAR</code></td><td>Luck of the Draw</td><td>Lukas loses the lottery twice. Priya leads early, but her line is much slower.</td></tr>
+        <tr><td><code>RIVER</code></td><td>Boom and Bust</td><td>Layoffs on turn 6. A green card protects you; a work visa tied to one job does not.</td></tr>
+        <tr><td><code>SUMMIT</code></td><td>Policy Shake-Up</td><td>Fee fights, a new lottery rule, farm pay cuts, a remittance tax and a line that moves backward.</td></tr>
+        <tr><td><code>HARBOR</code></td><td>Long Lines</td><td>Paperwork pile-ups and backlogs for everyone.</td></tr>
+        <tr><td><code>PRAIRIE</code></td><td>Harvest Seasons</td><td>Built for Marco: heat, drought, pay rules and a record harvest.</td></tr>
+        <tr><td><i>any other</i></td><td>Custom</td><td>Makes a random scenario that repeats for anyone who types the same code.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Pairings</h2>
     <div class="grid">
-      <div class="box"><b>🇮🇳 Priya · India</b>Software engineer with a U.S. master's degree. H-1B lottery → employer-sponsored green card (EB-2). She usually gets an approved I-140, then waits in the India EB-2 line, which is decades long. Rare cards let her try the EB-1 category or move to Canada.</div>
-      <div class="box"><b>🇩🇪 Lukas · Germany</b>Same degree, same employer, same forms as Priya. Germany's EB-2 line was "Current" in 2026, so he usually gets a green card and may reach citizenship within the 12 years.</div>
-      <div class="box"><b>🇲🇽 Marco · Mexico</b>H-2A seasonal farmworker. Each year he needs a visa and must cross at a port of entry to work the season, then return home. He saves toward a family house. H-2A does not lead to a green card; a rare year-round sponsor card can open the EB-3 path.</div>
-    </div>
-    <h3>Pairings</h3>
-    <ul>
-      <li><b>Priya vs. Lukas: "Same job, different country."</b> The clearest lesson: identical choices, very different results because of the 7% per-country cap.</li>
-      <li><b>Marco vs. Lukas: "Two kinds of worker visa."</b> A seasonal visa with no path vs. a skilled-worker visa with a path.</li>
-      <li><b>Marco vs. Priya: "Two long roads."</b> Both work in the U.S. for years; both hit walls they can't control.</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>How the game teaches</h2>
-    <div class="grid">
-      <div class="box"><b>🔍 Hidden steps</b>The Paper Trail shows each next step only as "? ? ?" plus clues: the agency and who files it. Students read the cards' "When to use it" text to work out the order.</div>
-      <div class="box"><b>❌ Rejections cost money</b>Filing too early gets rejected. The fee is lost (as in real life) and a Rejection Notice clogs the hand.</div>
-      <div class="box"><b>📨 Requests for Evidence</b>The right form without the right documents triggers an RFE. Students must find the document before the deadline.</div>
-      <div class="box"><b>⏳ Wait cards</b>"Date Not Current" cards can't be played or discarded. Priya's hand fills with them while she waits in line, so the backlog takes up her hand space.</div>
-      <div class="box"><b>🎁 Choices</b>Each year students draft a card: lawyers, legal clinics, premium processing, savings, or rare "legendary" choices such as moving to Canada.</div>
-      <div class="box"><b>🚩 Scam awareness</b>A "Fast Visa Help!" notario card promises guaranteed approval. Students who read carefully spot the red flags.</div>
+      <div class="box"><b>Priya + Lukas</b>Same degree, same job, same forms. Lukas's line (Germany) had no wait in 2026. Priya's (India) was stuck at 2014.</div>
+      <div class="box"><b>Marco + Lukas</b>Two kinds of worker visa. One can lead to a green card. The other sends you home every season.</div>
+      <div class="box"><b>Marco + Priya</b>Both work in the U.S. for years. Both hit walls they can't control.</div>
     </div>
   </section>
 
   <section>
-    <h2>Debrief questions</h2>
+    <h2>Discussion questions</h2>
     <ol>
-      <li>What decided how far you got: your choices, luck, money, or where you were born? Give one example from your game.</li>
-      <li>Priya and Lukas filed the same forms for the same employer. Why did one usually get a green card and the other didn't? Is the 7% per-country limit fair?</li>
-      <li>Marco worked in the U.S. for many seasons but could not get a green card. Should years of seasonal work count toward permanent residency? What would farms, workers and taxpayers say?</li>
-      <li>Which step surprised you the most? Why do you think the law works that way?</li>
-      <li>Employers file many of these steps. What power does that give employers over workers? Is that good, bad, or both?</li>
-      <li>If you were in Congress, what ONE rule would you change? Who would support it, and who would object?</li>
+      <li>What decided how far you got: your choices, luck, money, or where you were born?</li>
+      <li>Priya and Lukas did the same things. Is it fair that every country gets the same number of green cards?</li>
+      <li>Marco worked many seasons but could never stay. Should years of seasonal work count toward a green card?</li>
+      <li>Employers file most of these steps. What power does that give them over workers?</li>
+      <li>Which choice was hardest for you? Why?</li>
+      <li>If you could change one rule, what would it be? Who would agree and who would disagree?</li>
     </ol>
-    <h3>Class chart</h3>
-    <p>Every end screen shows a one-line summary like <span class="code">PAPER TRAIL · Table MAPLE · Priya · Waiting in line (3/5) · 12 yrs · $76,000 · 1 rejections</span>. Make a chart on the board with columns for character, security level and money, and have students add their result. The pattern by character is often the strongest evidence for the discussion.</p>
   </section>
 
-  <section>
-    <h2>Key vocabulary</h2>
-    <table>
-      <tbody>
-        <tr><td><b>Visa</b></td><td>Permission to travel to the U.S. and ask to enter for a specific purpose.</td></tr>
-        <tr><td><b>Green card</b></td><td>Lawful permanent residency. You can live and work in the U.S. permanently.</td></tr>
-        <tr><td><b>H-1B</b></td><td>Temporary work visa for jobs that need a college degree. 85,000 new visas a year, given by lottery.</td></tr>
-        <tr><td><b>H-2A</b></td><td>Temporary visa for seasonal farm work. No yearly limit; the worker is tied to one employer.</td></tr>
-        <tr><td><b>PERM</b></td><td>Labor certification: the employer proves no qualified U.S. worker is available.</td></tr>
-        <tr><td><b>Priority date</b></td><td>Your place in the green card line.</td></tr>
-        <tr><td><b>Visa Bulletin</b></td><td>A monthly State Department chart showing which priority dates can get green cards now.</td></tr>
-        <tr><td><b>Per-country cap</b></td><td>No country can get more than 7% of green cards in a year.</td></tr>
-        <tr><td><b>RFE</b></td><td>Request for Evidence: the government asks for missing documents.</td></tr>
-        <tr><td><b>Naturalization</b></td><td>Becoming a U.S. citizen after holding a green card, usually for 5 years.</td></tr>
-        <tr><td><b>Notario fraud</b></td><td>A scam where someone who is not a lawyer offers immigration "help."</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section class="note warn">
-    <h2>Classroom sensitivity</h2>
+  <section class="note">
+    <h2>Classroom care</h2>
     <ul>
-      <li>Some students may be immigrants or have family members with different immigration statuses. <b>Never ask students about their own or their family's status</b>, and let them opt out of sharing personal connections.</li>
-      <li>The characters are fictional composites. The game does not simulate raids, detention or deportation. When a character "has to leave," it's shown as the end of a visa, not as enforcement.</li>
-      <li>This game covers two legal pathways only: employment-based and seasonal worker. It does not cover family sponsorship, refugees, asylum, the diversity lottery or unauthorized immigration. Mention that these exist and work differently.</li>
-      <li>Frame the debrief around <i>systems and policies</i>, not around whether people "deserve" to immigrate.</li>
+      <li>Some students may be immigrants or have family members with different statuses. <b>Never ask students about their own or their family's status.</b></li>
+      <li>The characters are made up. The game has no raids, detention or deportation. When a character leaves, it is because a visa ended.</li>
+      <li>The game covers two legal work paths only. Family sponsorship, refugees, asylum and the diversity lottery work differently. Mention that they exist.</li>
+      <li>Keep the talk on <i>rules and systems</i>, not on whether people "deserve" to immigrate.</li>
     </ul>
   </section>
 
   <section>
-    <h2>Accuracy & simplifications</h2>
-    <p>Facts, fees and waiting lines are based on official sources as of <b>September 2026</b>: the USCIS fee schedule (Form G-1055), the September 2026 Visa Bulletin, DOL processing data, and Federal Register rules. Immigration policy changes often, and several 2026 rules were in court or only proposed when this was written.</p>
-    <h3>Things the game simplifies</h3>
+    <h2>Accuracy</h2>
+    <p>Facts, fees and wait times come from official sources as of <b>September 2026</b>. Rules change often, and several 2026 rules were in court or only proposed.</p>
+    <h3>Simplified for the game</h3>
     <ul class="sm">
-      <li><b>Time</b> moves in 1-year turns, so processing times are rounded (for example, PERM ≈ 2 years, I-140 and I-485 ≈ 1 year).</li>
-      <li><b>Money</b> is shown as savings after rent, taxes and living costs, not gross salary. Fees are approximate (paper-filing amounts).</li>
-      <li><b>The Visa Bulletin</b> moves at a steady, simplified speed. Real movement is irregular and can go backward.</li>
-      <li><b>The H-1B lottery</b> results are scripted in the named scenarios so that partner comparisons are fair. Real odds were about 35% in the 2025 lottery.</li>
-      <li><b>Family members</b> (spouses and children, who also use up green card numbers) are left out.</li>
-      <li><b>Priya's "Move to Canada" and "EB-1"</b> cards stand for real choices many backlogged workers make, in a very simplified form.</li>
+      <li>8 turns of about 1.5 years each. Processing times are rounded to whole turns.</li>
+      <li>Money is savings after rent, taxes and food. Fees are approximate paper-filing amounts.</li>
+      <li>The "Now Serving" line moves at a steady speed. Real lines move unevenly and sometimes backward.</li>
+      <li>Lottery results are scripted in the named table codes so partner comparisons are fair. Real odds were about 35% in 2025.</li>
+      <li>Spouses and children, who also use up green cards, are left out. H-1B extensions and document expiration dates are left out too.</li>
     </ul>
-    <h3>Key facts used</h3>
+    <h3>Key facts</h3>
     <ul class="sm">
-      <li>85,000 new H-1B visas a year (65,000 + 20,000 for U.S. advanced degrees); about 344,000 registrations and a ~35% selection rate in the FY2026 lottery; wage-weighted selection since Feb 2026. <a href="https://www.uscis.gov/working-in-the-united-states/temporary-workers/h-1b-specialty-occupations/h-1b-electronic-registration-process">USCIS</a> · <a href="https://www.federalregister.gov/documents/2025/12/29/2025-23853/weighted-selection-process-for-registrants-and-petitioners-seeking-to-file-cap-subject-h-1b">Federal Register</a></li>
-      <li>Fees: H-1B registration $215; I-129 H-1B about $3,380 with required employer fees; I-140 $715 + $600; I-485 $1,440; N-400 $760; premium processing $2,965 (since Mar 2026). <a href="https://www.uscis.gov/g-1055">USCIS G-1055</a></li>
-      <li>Sept 2026 Visa Bulletin: EB-2 rest of world "Current"; EB-2 India unavailable (last cutoff July 15, 2014); EB-3 Other Workers Mexico Apr 1, 2022. <a href="https://travel.state.gov/content/travel/en/legal/visa-law0/visa-bulletin.html">State Dept.</a></li>
-      <li>7% per-country cap (25,620); at least 140,000 employment-based green cards a year including family members. A 2026 NFAP projection put the potential EB-2 wait for Indians filing in 2026 at 179 years. <a href="https://nfap.com/">NFAP</a></li>
-      <li>H-2A: no cap; a record 398,258 positions certified in FY2025; about 90% of visas go to Mexican workers; employers must provide housing and transportation and reimburse visa and travel costs; 3-year maximum stay, then 60 days outside the U.S. <a href="https://www.dol.gov/agencies/whd/workers/h2a">DOL</a> · <a href="https://www.uscis.gov/working-in-the-united-states/temporary-workers/h-2a-temporary-agricultural-workers">USCIS</a></li>
-      <li>The 2025 AEWR (H-2A minimum wage) rule lowered wages in most states; a federal court ruled it unlawful in Aug 2026 but left rates in place for now.</li>
-      <li>$100,000 H-1B proclamation (Sept 2025): students changing status inside the U.S. were exempt; vacated by a federal court in June 2026; a separate $103,265 fee was proposed in Aug 2026.</li>
-      <li>2025 civics test: up to 20 questions from 128; 12 correct to pass. <a href="https://www.uscis.gov/citizenship-resource-center/naturalization-test-and-study-resources/2025-civics-test">USCIS</a></li>
+      <li>85,000 new H-1B visas a year. About 344,000 entries in the 2025 lottery. Since Feb 2026, higher wage levels get more entries. <a href="https://www.uscis.gov/working-in-the-united-states/temporary-workers/h-1b-specialty-occupations/h-1b-electronic-registration-process">USCIS</a></li>
+      <li>Fees: lottery $215; I-129 about $3,380 with employer fees; I-140 $715 + $600; I-485 $1,440; premium processing $2,965. <a href="https://www.uscis.gov/g-1055">USCIS G-1055</a></li>
+      <li>September 2026 Visa Bulletin: EB-2 for most countries "Current"; EB-2 India stuck at July 15, 2014; EB-3 Other Workers (Mexico) April 1, 2022. <a href="https://travel.state.gov/content/travel/en/legal/visa-law0/visa-bulletin.html">State Dept.</a></li>
+      <li>7% per-country cap (25,620). A 2026 NFAP projection put the EB-2 wait for an Indian filing in 2026 at 179 years (a projection, not a prediction). <a href="https://nfap.com/">NFAP</a></li>
+      <li>H-2A: no cap; a record 398,258 jobs certified in FY2025; about 90% of visas go to Mexican workers; employers must provide housing and travel and may not charge recruiting fees. <a href="https://www.dol.gov/agencies/whd/workers/h2a">DOL</a></li>
+      <li>EB-3 "Other Workers" (year-round jobs only) is capped at 10,000 a year worldwide.</li>
+      <li>1% federal tax on cash remittances since January 1, 2026. Bank transfers are exempt.</li>
       <li>Notario fraud: "A notario público is not authorized to provide you with any legal services related to immigration." <a href="https://www.uscis.gov/scams-fraud-and-misconduct/avoid-scams/common-scams">USCIS</a></li>
     </ul>
   </section>
@@ -195,9 +170,9 @@
   <section class="noprint">
     <h2>Tech notes</h2>
     <ul class="sm">
-      <li>Works in Chrome on Chromebooks; no login or account. Nothing is sent online. Progress is saved in the browser, so if a tab reloads the student can press <b>Continue</b>.</li>
-      <li>Sound is off by default. Students can turn it on with the 🔇 button (headphones recommended).</li>
-      <li>Photos come from Wikimedia Commons. See <a href="credits.html">Image credits</a>.</li>
+      <li>Runs in Chrome on Chromebooks. No login, and nothing is sent online. If a tab reloads, press <b>Continue</b> on the title screen.</li>
+      <li>Sound starts off. Students can turn it on (headphones recommended).</li>
+      <li>Card art is drawn for the game. Real photos in each card's "Learn more" view come from Wikimedia Commons (<a href="credits.html">credits</a>).</li>
     </ul>
   </section>
 </main>

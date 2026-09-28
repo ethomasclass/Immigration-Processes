@@ -268,5 +268,77 @@
     "license": "CC BY-SA 4.0",
     "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
     "source_url": "https://commons.wikimedia.org/wiki/File:USPS_mailbox_Mapleton%2C_Utah.JPG"
+  },
+  {
+    "slug": "money",
+    "file": "assets/img/money.webp",
+    "title": "File:United States one-hundred-dollar bill.jpg",
+    "author": "عکاس: محمدمهدی دورانی",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:United_States_one-hundred-dollar_bill.jpg"
+  },
+  {
+    "slug": "paperwork",
+    "file": "assets/img/paperwork.webp",
+    "title": "File:Paperwork to travel to the Dominican Republic (onboard an aircraft).JPG",
+    "author": "User:Mattes",
+    "license": "CC BY 2.0 de",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/de/deed.en",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Paperwork_to_travel_to_the_Dominican_Republic_%28onboard_an_aircraft%29.JPG"
+  },
+  {
+    "slug": "rent-keys",
+    "file": "assets/img/rent-keys.webp",
+    "title": "File:Door key for lock type BKS Janus on keyring.jpg",
+    "author": "Pittigrilli",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Door_key_for_lock_type_BKS_Janus_on_keyring.jpg"
+  },
+  {
+    "slug": "farm-housing",
+    "file": "assets/img/farm-housing.webp",
+    "title": "File:RD Under Secretary Xochitl Torres Small tours Coachella Valley, CA (20220630-RD-LSC-1562).jpg",
+    "author": "USDAgov",
+    "license": "Public domain",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source_url": "https://commons.wikimedia.org/wiki/File:RD_Under_Secretary_Xochitl_Torres_Small_tours_Coachella_Valley%2C_CA_%2820220630-RD-LSC-1562%29.jpg"
+  },
+  {
+    "slug": "apartment",
+    "file": "assets/img/apartment.webp",
+    "title": "File:AIMCO apartment exterior 2.jpg",
+    "author": "Architecturist",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:AIMCO_apartment_exterior_2.jpg"
+  },
+  {
+    "slug": "job-offer",
+    "file": "assets/img/job-offer.webp",
+    "title": "File:Business man and woman handshake in work office.jpg",
+    "author": "perzon seo",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Business_man_and_woman_handshake_in_work_office.jpg"
+  },
+  {
+    "slug": "clinic-xray",
+    "file": "assets/img/clinic-xray.webp",
+    "title": "File:Chest x-ray - posteroanterior view.jpg",
+    "author": "O'Dea",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Chest_x-ray_-_posteroanterior_view.jpg"
+  },
+  {
+    "slug": "tech-office",
+    "file": "assets/img/tech-office.webp",
+    "title": "File:Pexels-luis-gomes-546819.jpg",
+    "author": "luis gomes",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Pexels-luis-gomes-546819.jpg"
   }
 ]
