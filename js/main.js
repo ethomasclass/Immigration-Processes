@@ -117,6 +117,18 @@ function openOverlay(html, { cls = '', onClose, dismiss = true } = {}) {
 }
 function closeAllOverlays() { overlayRoot.innerHTML = ''; }
 
+function confirmBox(title, text, yes) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const { el, close } = openOverlay(`
+      <h2>${esc(title)}</h2>
+      <p style="font-size:16px">${esc(text)}</p>
+      <div class="row" style="justify-content:center"><button class="btn" data-close>Cancel</button><button class="btn primary" id="cf-yes">${esc(yes)}</button></div>`,
+    { cls: 'result-modal', onClose: () => { if (!answered) resolve(false); } });
+    $('#cf-yes', el).onclick = () => { answered = true; close(); resolve(true); };
+  });
+}
+
 function resultModal(res) {
   return new Promise((resolve) => {
     const icon = { rejected: '❌', rfe: '📨', approved: '✅', filed: '📬', shield: '🛡️', action: '🧭' }[res.kind] || 'ℹ️';
@@ -579,7 +591,7 @@ async function doPlay(uid) {
   const c = CARDS[h.id];
   if (c.type === 'wait') { toast('Wait cards can’t be played. They leave on their own.', 'bad'); return; }
   if (!['form', 'action'].includes(c.type)) { toast('Only forms and action cards can be played.', 'bad'); return; }
-  if (c.effect?.kind === 'canada' && !confirm('Moving to Canada ends your U.S. journey. Are you sure?')) return;
+  if (c.effect?.kind === 'canada' && !(await confirmBox('Move to Canada?', 'Moving to Canada ends your U.S. journey. You give up your place in the green card line.', 'Move to Canada'))) return;
   const res = E.playCard(S, uid);
   if (res.kind === 'info' || (!res.ok && !res.stamp && res.kind !== 'shield')) {
     toast(`${res.title ? res.title + ': ' : ''}${res.text}`, res.ok ? 'good' : '');
