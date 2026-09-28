@@ -241,6 +241,7 @@ function renderIntro() {
 function sayText() {
   if (S.over) return 'Your journey is over.';
   if (!S.packOpened) return `Turn ${S.turn}: open your pack to get new cards.`;
+  if (S.hand.some((h) => h.id === 'top-talent') && S.status === 'h1b') return 'You unlocked Top Talent! Drag "Top Talent Petition" onto your road.';
   const orders = [S.order, ...(S.flags.sponsored ? [S.permOrder] : [])];
   for (const order of orders) {
     for (const id of order) {
@@ -253,7 +254,7 @@ function sayText() {
         if (S.track === 'h2a' && order === S.order) continue;
         return t.kind === 'lottery' ? 'You\'re in the lottery. Results next turn. Finish your turn.' : `"${CARDS[t.card].name}" is being reviewed. Finish your turn.`;
       }
-      if (st.status === 'waiting' || t.kind === 'wait') return st.status === 'waiting' ? 'You\'re waiting in line. There\'s nothing to send. Finish your turn.' : 'Keep going! Get your ticket number first.';
+      if (st.status === 'waiting' || t.kind === 'wait') return st.status === 'waiting' ? (S.track === 'h1b' && S.chart === 'india' ? 'You\'re stuck in a slow line. Top Talent cards could get you into a faster one.' : 'You\'re waiting in line. There\'s nothing to send. Finish your turn.') : 'Keep going! Get your ticket number first.';
       const name = CARDS[t.card].name;
       return S.hand.some((h) => h.id === t.card) ? `Drag "${name}" onto the glowing space.` : `You need "${name}". Watch for it in your next pack.`;
     }
@@ -335,7 +336,10 @@ function renderBoard() {
       ${roadHTML()}
     </section>
     <section class="mid">
-      <button class="papers" id="papers" aria-label="Your papers"><div class="pile"><span></span><span></span><span></span></div><div><b>Papers · ${S.folder.length}</b><small>${esc(S.folder.map((f) => CARDS[f.id].name).join(', ') || 'None yet')}</small></div></button>
+      <div class="piles">
+        <button class="papers" id="papers" aria-label="Your papers"><div class="pile"><span></span><span></span><span></span></div><div><b>Papers · ${S.folder.length}</b><small>${esc(S.folder.map((f) => CARDS[f.id].name).join(', ') || 'None yet')}</small></div></button>
+        ${S.track === 'h1b' ? `<button class="papers talent-pile" id="talent" aria-label="Top Talent cards"><div class="pile"><span></span><span></span><span></span></div><div><b>Top Talent · ${Math.min(S.talent.length, E.TALENT_NEEDED)}/${E.TALENT_NEEDED}</b><small>${esc(talentStatus())}</small></div></button>` : ''}
+      </div>
       <div class="center">
         ${S.packOpened ? '<button class="btn go big" id="finish">Finish turn →</button>' : '<button class="btn go big bounce" id="open">Open pack</button>'}
       </div>
@@ -357,6 +361,7 @@ function renderBoard() {
   $('#pile').onclick = openPack;
   $('#finish')?.addEventListener('click', finishTurn);
   $('#papers').onclick = showPapers;
+  $('#talent')?.addEventListener('click', showTalent);
   $('#log').onclick = showLog;
   $('#menu').onclick = showMenu;
   $('#snd').onclick = () => { FX.setMuted(!FX.isMuted()); $('#snd').textContent = FX.isMuted() ? '🔇' : '🔊'; };
@@ -473,6 +478,22 @@ async function play(u) {
   await resultSheet(res);
   if (S.over) return finishGame();
   coachNext();
+}
+
+function talentStatus() {
+  const st = S.steps.eb1;
+  if (st?.status === 'approved') return 'In the faster EB-1 line!';
+  if (st?.status === 'pending') return 'Petition sent. Hear back next turn.';
+  if (S.flags.talentUnlocked) return 'Unlocked! Play your petition.';
+  return 'Collect 3 for a faster line';
+}
+function showTalent() {
+  const slots = Array.from({ length: E.TALENT_NEEDED }, (_, i) => S.talent[i]);
+  overlay(`<button class="icon-btn close-x" data-close aria-label="Close">✕</button><h2>Top Talent</h2>
+    <p>The top-talent green card (EB-1) needs proof in <b>3 of 10</b> areas, like patents, awards or news stories. Collect 3 Top Talent cards and you can file a <b>Top Talent Petition</b> yourself. It skips "Prove No American Applied" and uses a faster line.</p>
+    <div class="discard-row">${slots.map((id) => (id ? cardHTML(id) : '<div class="card empty-slot"><span>?</span></div>')).join('')}</div>
+    <p style="font-size:15px">${esc(talentStatus())}</p>`, { cls: 'recap' });
+  $$('.overlay .discard-row .card[data-id]').forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
 }
 
 function showPapers() {
@@ -592,71 +613,143 @@ function showReward() {
 function openPack() {
   if (S.packOpened || S.over) return;
   const ch = CHARACTERS[S.charId];
+  const count = E.PACK_SIZE - (S.flags.smallPack ? 1 : 0);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const stage = document.createElement('div');
   stage.className = 'pack-stage';
   stage.innerHTML = `
     <div class="stage-title">Turn ${S.turn} pack</div>
     <div class="stage-sub">Grab the top edge and drag right to tear it open</div>
-    <div class="pack" style="--pc:${ch.color}" tabindex="0" aria-label="Card pack. Press Enter to open.">
-      <div class="cut-hint">✂ tear here →</div>
-      <div class="p-top"><div class="halftone"></div><div class="crimp"></div><div class="sheen"></div></div>
-      <div class="cut"></div><div class="cut-prog"></div>
-      <div class="p-body"><div class="halftone"></div><div class="sheen"></div>
+    <div class="booster" style="--pc:${ch.color}" tabindex="0" aria-label="Card pack. Press Enter to open.">
+      <div class="bs-back"><div class="bs-inside"></div></div>
+      <div class="bs-stack">${Array.from({ length: count }, (_, i) => `<div class="bs-card" style="--i:${i}">${cardBack()}</div>`).join('')}</div>
+      <div class="bs-front">
+        <div class="crinkle"></div><div class="halftone"></div>
         <div class="p-ava">${portrait(S.charId)}</div>
         <div class="logo">Paper<br>Trail</div>
-        <div class="p-info">${E.yearOf(S)} · ${E.PACK_SIZE - (S.flags.smallPack ? 1 : 0)} CARDS</div>
-        <div class="crimp"></div>
+        <div class="p-info">${E.yearOf(S)} · ${count} CARDS</div>
+        <div class="crimp bottom"></div><div class="sheen"></div>
       </div>
+      <div class="bs-strip"><div class="crinkle"></div><div class="crimp"></div><div class="sheen"></div><span class="notch"></span></div>
+      <div class="tear-glow"></div>
+      <div class="cut-hint">✂ tear here →</div>
     </div>
     <div class="stage-controls"><button class="btn" id="tear">Tear open</button></div>`;
   document.body.appendChild(stage);
-  const pack = $('.pack', stage);
-  const prog = $('.cut-prog', stage);
+  const pack = $('.booster', stage);
+  const strip = $('.bs-strip', stage);
+  const glow = $('.tear-glow', stage);
   let tearing = false;
   let p = 0;
   let done = false;
+  let lastSpark = 0;
+
+  // A jagged top edge for the torn foil layers.
+  const jag = (seed) => {
+    const pts = ['0% 100%', '100% 100%', '100% 3%'];
+    for (let i = 14; i >= 0; i--) pts.push(`${(i / 14) * 100}% ${i % 2 ? 0 : 2.4 + ((i * seed) % 3) * 0.6}%`);
+    return `polygon(${pts.join(',')})`;
+  };
+  const setTear = (v) => {
+    p = v;
+    strip.style.transform = `translateY(${-p * 5}px) rotate(${-p * 7}deg)`;
+    glow.style.width = `${p * 100}%`;
+    const now = performance.now();
+    if (p > 0.02 && now - lastSpark > 70) {
+      lastSpark = now;
+      const r = pack.getBoundingClientRect();
+      FX.burst(r.left + r.width * p, r.top + r.height * 0.15, { colors: ['#f6f0e2', '#ffd84a', ch.hex], count: 6, power: 3, shape: 'spark', gravity: 0.25 });
+    }
+  };
   pack.addEventListener('pointermove', (e) => {
     const r = pack.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width;
     const y = (e.clientY - r.top) / r.height;
-    if (!tearing) pack.style.transform = `perspective(900px) rotateY(${(x - 0.5) * 16}deg) rotateX(${(0.5 - y) * 12}deg)`;
+    if (!tearing && !done) pack.style.transform = `rotateY(${(x - 0.5) * 16}deg) rotateX(${(0.5 - y) * 10}deg)`;
     $$('.sheen', pack).forEach((f) => f.style.setProperty('--fx', `${x * 100}%`));
-    if (tearing) { p = Math.max(p, Math.min(1, x)); prog.style.width = `${p * 100}%`; if (p > 0.88) tear(); }
+    if (tearing) { setTear(Math.max(p, Math.min(1, x))); if (p > 0.9) finish(); }
   });
-  pack.addEventListener('pointerleave', () => { if (!tearing) pack.style.transform = ''; });
+  pack.addEventListener('pointerleave', () => { if (!tearing && !done) pack.style.transform = ''; });
   pack.addEventListener('pointerdown', (e) => {
+    if (done) return;
     const r = pack.getBoundingClientRect();
-    if ((e.clientY - r.top) / r.height < 0.36) { tearing = true; pack.setPointerCapture(e.pointerId); FX.sound('tear'); }
+    if ((e.clientY - r.top) / r.height < 0.3) { tearing = true; pack.setPointerCapture(e.pointerId); FX.sound('tear'); pack.style.transform = ''; }
     else { pack.classList.remove('shake'); void pack.offsetWidth; pack.classList.add('shake'); $('.stage-sub', stage).textContent = 'Grab the TOP edge, then drag right →'; }
   });
-  pack.addEventListener('pointerup', () => { tearing = false; if (!done) { p = 0; prog.style.width = '0'; } });
-  pack.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') tear(); });
-  $('#tear', stage).onclick = tear;
+  pack.addEventListener('pointerup', () => {
+    tearing = false;
+    if (!done && p < 0.9) { strip.style.transition = 'transform .25s'; setTear(0); setTimeout(() => (strip.style.transition = ''), 260); }
+  });
+  const auto = async () => {
+    if (done || tearing) return;
+    tearing = true;
+    FX.sound('tear');
+    for (let v = p; v <= 1; v += 0.06) { setTear(v); await wait(22); }
+    finish();
+  };
+  pack.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); auto(); } });
+  $('#tear', stage).onclick = auto;
 
-  function tear() {
+  async function finish() {
     if (done) return;
     done = true;
-    prog.style.width = '100%';
-    FX.sound('tear');
-    const r = pack.getBoundingClientRect();
-    FX.burst(r.left + r.width / 2, r.top + r.height * 0.17, { colors: ['#ffd84a', '#f6f0e2', ch.hex], count: 50, power: 9, shape: 'spark' });
-    pack.classList.add('torn');
+    tearing = false;
+    setTear(1);
     $('.cut-hint', stage)?.remove();
+    $('.stage-controls', stage).innerHTML = '';
+    // Decide the cards now (so a refresh can't re-roll them), then animate.
     const cards = E.makePack(S);
     const results = cards.map((c) => E.collectCard(S, c));
     S.packOpened = true;
     S.phase = 'play';
     save();
-    setTimeout(() => deal(cards, results), 650);
+    // 1. The strip rips free.
+    FX.sound('tear');
+    const r = pack.getBoundingClientRect();
+    FX.burst(r.left + r.width / 2, r.top + r.height * 0.14, { colors: ['#f6f0e2', '#ffd84a', ch.hex], count: 40, power: 8, shape: 'spark' });
+    $('.bs-front', pack).style.clipPath = jag(3);
+    $('.bs-back', pack).style.clipPath = jag(5);
+    strip.classList.add('fly');
+    glow.remove();
+    await wait(reduce ? 0 : 260);
+    // 2. Pull the foil layers apart.
+    pack.classList.add('open');
+    $('.stage-sub', stage).textContent = '';
+    await wait(reduce ? 0 : 420);
+    // 3. Cards slide up out of the opening.
+    const stack = $$('.bs-card', pack);
+    stack.forEach((c, i) => setTimeout(() => { c.classList.add('out'); FX.sound('flip'); }, reduce ? 0 : i * 130));
+    await wait(reduce ? 0 : 420 + stack.length * 130);
+    deal(cards, results, stack);
   }
-  function deal(cards, results) {
-    stage.innerHTML = `
-      <div class="stage-title">Turn ${S.turn} pack</div>
-      <div class="stage-sub">Click each card to flip it</div>
-      <div class="reveal-row">${cards.map((c, i) => `<div class="slot2">${cardHTML(c.id, { down: true, hot: ['rare', 'legendary'].includes(CARDS[c.id].rarity) })}<div class="result ${results[i].tone}">${esc(results[i].text)}</div></div>`).join('')}</div>
-      <div class="stage-controls"><button class="btn" id="all">Flip all</button><button class="btn go big hidden" id="take">Take cards</button></div>`;
-    const els = $$('.reveal-row .card', stage);
-    els.forEach((el, i) => { el.style.animationDelay = `${i * 0.09}s`; el.onclick = () => flip(el, i); });
+
+  function deal(cards, results, stack) {
+    const from = stack.map((c) => c.getBoundingClientRect());
+    const pr = pack.getBoundingClientRect();
+    Object.assign(pack.style, { position: 'fixed', left: `${pr.left}px`, top: `${pr.top}px`, margin: '0' });
+    const row = document.createElement('div');
+    row.className = 'reveal-row flip-in';
+    row.innerHTML = cards.map((c, i) => `<div class="slot2">${cardHTML(c.id, { down: true, hot: ['rare', 'legendary'].includes(CARDS[c.id].rarity) })}<div class="result ${results[i].tone}">${esc(results[i].text)}</div></div>`).join('');
+    const controls = $('.stage-controls', stage);
+    stage.insertBefore(row, controls);
+    controls.innerHTML = '<button class="btn" id="all">Flip all</button><button class="btn go big hidden" id="take">Take cards</button>';
+    $('.stage-sub', stage).textContent = 'Click each card to flip it';
+    const els = $$('.card', row);
+    els.forEach((el, i) => {
+      const to = el.getBoundingClientRect();
+      const f = from[Math.min(i, from.length - 1)];
+      const dx = f.left + f.width / 2 - (to.left + to.width / 2);
+      const dy = f.top + f.height / 2 - (to.top + to.height / 2);
+      const sc = f.width / to.width;
+      el.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(${sc}) rotate(${(i - (els.length - 1) / 2) * 4}deg)` },
+        { transform: `translate(${dx * 0.3}px, ${dy * 0.3 - 40}px) scale(${(sc + 1) / 2}) rotate(${(i - 1.5) * -3}deg)`, offset: 0.55 },
+        { transform: 'none' },
+      ], { duration: reduce ? 1 : 620, delay: reduce ? 0 : i * 110, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+    });
+    stack.forEach((c) => (c.style.visibility = 'hidden'));
+    pack.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(55vh) rotate(9deg)', opacity: 0 }], { duration: reduce ? 1 : 650, easing: 'cubic-bezier(.5,0,.8,.4)', fill: 'forwards' });
+    setTimeout(() => pack.remove(), 700);
     FX.sound('whoosh');
     let flipped = 0;
     function flip(el, i) {
@@ -665,7 +758,7 @@ function openPack() {
       const c = CARDS[cards[i].id];
       FX.sound('flip');
       setTimeout(() => {
-        if (c.rarity === 'rare') { FX.sound('rare'); FX.burstAt(el, { colors: ['#ffd84a', '#f6f0e2', '#ff5fa2'], count: 44, power: 8 }); }
+        if (c.rarity === 'rare' || c.type === 'talent') { FX.sound('rare'); FX.burstAt(el, { colors: ['#ffd84a', '#f6f0e2', '#ff5fa2'], count: 44, power: 8 }); }
         else if (c.type === 'money') { FX.sound('coin'); FX.burstAt(el, { colors: ['#1fa463', '#ffd84a'], count: 18, power: 5, shape: 'spark' }); }
         else if (c.type === 'wait' || c.type === 'bill') FX.sound('bad');
         el.parentElement.querySelector('.result').classList.add('show');
@@ -676,6 +769,7 @@ function openPack() {
         $('.stage-sub', stage).textContent = 'Click a card to read it, or take them all.';
       }
     }
+    els.forEach((el, i) => (el.onclick = () => flip(el, i)));
     $('#all', stage).onclick = async () => { for (let i = 0; i < els.length; i++) if (els[i].classList.contains('down')) { flip(els[i], i); await wait(240); } };
     $('#take', stage).onclick = () => {
       stage.remove();
@@ -807,11 +901,73 @@ const REAL = {
     'Farms must pay for housing and travel, and they may not charge workers recruiting fees.',
   ],
 };
+const LADDER_NOTE = {
+  priya: { 1: 'Many talented students never win the lottery and have to leave.', 2: 'You had a work visa, but no place in line yet.', 3: 'In real life, most people from India in your spot are still waiting, often for decades.', 4: 'Very few people from India get here this fast. Top Talent is one of the only shortcuts.' },
+  lukas: { 1: 'Many talented students never win the lottery and have to leave.', 2: 'You had a work visa, but no place in line yet.', 3: 'You were close. For Germany, the line itself had almost no wait in 2026.', 4: 'This is a common result for someone from Germany with a job offer.' },
+  marco: { 0: 'You missed the last season, so you had no U.S. visa at the end.', 1: 'This is the usual story: years of seasonal work, but no way to stay.', 3: 'You got a ticket number through a rare year-round job. Most guest workers never get that chance.', 4: 'This is very rare for a farmworker.' },
+};
+function epText() {
+  const ep = E.epilogue(S);
+  const ch = CHARACTERS[S.charId];
+  if (ep.kind === 'line') return `<p class="ep-note">⏩ At the speed the line moved in this game, ${esc(ch.name)} gets a green card in <b>${ep.year}</b>, at age <b>${ep.age}</b>.</p>`;
+  if (ep.kind === 'seasonal') return `<p class="ep-note">⏩ By ${ep.year}, ${esc(ch.name)} has worked about ${ep.seasons} harvests, and is still on a seasonal visa.</p>`;
+  if (ep.kind === 'gc') return `<p class="ep-note">⏩ In ${ep.year}, ${esc(ch.name)} can apply to become a U.S. citizen.</p>`;
+  return '';
+}
 const OUTCOMES = {
   gc: ['Got a green card', 'var(--green)'], h1b: ['Still waiting', '#d9661c'], opt: ['Never got a visa', '#d9661c'], student: ['Still in school', '#d9661c'],
   left: ['Moved home', 'var(--red)'], canada: ['Moved to Canada', 'var(--red)'], home: ['Still seasonal', '#d9661c'], season: ['Still seasonal', '#d9661c'],
 };
-function finishGame() {
+function epilogueOverlay() {
+  const ep = E.epilogue(S);
+  const ch = CHARACTERS[S.charId];
+  if (!ep || ep.kind === 'none' || S.epShown) return Promise.resolve();
+  S.epShown = true;
+  save();
+  return new Promise((resolve) => {
+    let html = '';
+    if (ep.kind === 'line') {
+      html = `<div class="stage-title">Fast forward…</div>
+        <div class="year-roll" id="yr">${ep.endYear}</div>
+        <div class="sign" style="margin:0 auto"><span class="hd">NOW SERVING</span><div class="line">Green card line · ${esc(ep.label)}</div><div id="flaps">${flapsHTML(E.fmtDate(ep.from))}</div>
+          <div class="ticket"><div class="stub"><small>${esc(ch.name.toUpperCase())}'S TICKET</small>${E.fmtDate(ep.to)}</div><div class="verdict" id="ep-v">The game is over, but the line keeps moving…</div></div></div>
+        <p class="ep-line hidden" id="ep-end">${esc(ch.name)} gets a green card in <b>${ep.year}</b>. ${ch.she} is <b>${ep.age}</b> years old.</p>`;
+    } else if (ep.kind === 'seasonal') {
+      html = `<div class="stage-title">Fast forward…</div><div class="year-roll" id="yr">${E.yearOf(S)}</div>
+        <p class="ep-line hidden" id="ep-end">By <b>${ep.year}</b>, ${esc(ch.name)} has worked about <b>${ep.seasons}</b> harvests in the U.S. ${ch.she} is ${ep.age}. A seasonal visa never turns into a green card by itself.</p>`;
+    } else if (ep.kind === 'gc') {
+      html = `<div class="stage-title">Fast forward…</div><div class="year-roll" id="yr">${E.yearOf(S)}</div>
+        <p class="ep-line hidden" id="ep-end">In <b>${ep.year}</b>, after 5 years with a green card, ${esc(ch.name)} can apply to become a U.S. citizen by passing a civics test.</p>`;
+    }
+    const { el, shut } = overlay(`<div class="epilogue">${html}<div style="text-align:center;margin-top:18px"><button class="btn go big hidden" id="ep-go">See results</button></div></div>`, { bare: true, close: false, onClose: resolve });
+    const yr = $('#yr', el);
+    const endY = ep.kind === 'line' ? ep.year : ep.year;
+    const startY = ep.kind === 'line' ? ep.endYear : E.yearOf(S);
+    const steps = Math.max(1, endY - startY);
+    const dur = Math.min(4200, 350 + steps * 90);
+    const t0 = performance.now();
+    const tick = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - (1 - k) ** 2;
+      yr.textContent = Math.round(startY + (endY - startY) * e);
+      if (ep.kind === 'line') $('#flaps', el).innerHTML = flapsHTML(E.fmtDate(ep.from + (ep.to - ep.from) * e));
+      if (k < 1) { if (Math.random() < 0.3) FX.sound('click'); requestAnimationFrame(tick); }
+      else {
+        $('#ep-end', el).classList.remove('hidden');
+        $('#ep-go', el).classList.remove('hidden');
+        if (ep.kind === 'line') $('#ep-v', el).innerHTML = '<b>Number called!</b>';
+        FX.sound(ep.kind === 'seasonal' ? 'bad' : 'stamp');
+      }
+    };
+    setTimeout(() => requestAnimationFrame(tick), 600);
+    $('#ep-go', el).onclick = shut;
+  });
+}
+
+async function finishGame() {
+  clearOverlays();
+  $$('.coach').forEach((c) => c.remove());
+  await epilogueOverlay();
   clearOverlays();
   $$('.coach').forEach((c) => c.remove());
   S.over = true;
@@ -821,7 +977,7 @@ function finishGame() {
   const [verdict, color] = OUTCOMES[S.status] || OUTCOMES.h1b;
   const lad = E.ladder(S);
   const headline = { gc: `${ch.name} can stay for good`, h1b: `${ch.name} is still in line`, left: `${ch.name} went home`, canada: `${ch.name} left for Canada`, home: `${ch.name} is still a guest worker`, student: `${ch.name} is still trying`, opt: `${ch.name} is still trying` }[S.status] || `${ch.name}'s story`;
-  const share = `PAPER TRAIL · ${S.code} · ${ch.name} · ${E.LADDER[lad]} · ${E.money$(S.money)} · ${S.stats.rejections} rejected`;
+  const share = `PAPER TRAIL · ${S.code} · ${ch.name} · Level ${lad}/4 ${E.LADDER[lad]} · ${E.money$(S.money)} · ${S.stats.rejections} rejected`;
   const q3 = S.track === 'h2a'
     ? `Marco worked ${S.seasons} harvest season${S.seasons === 1 ? '' : 's'}. Should years of seasonal work count toward a green card?`
     : S.charId === 'priya' ? 'Priya did what Lukas did. Is it fair that each country gets the same number of green cards?' : 'You moved faster than Priya with the same job. How would you explain that to her?';
@@ -831,6 +987,9 @@ function finishGame() {
     <div>
       <h1>${esc(headline)}</h1>
       <div class="verdict-stamp" style="color:${color}">${verdict}</div>
+      <div class="end-ladder" aria-label="Status ladder">${E.LADDER.slice(1).map((l, i) => `<div class="${i + 1 <= lad ? 'on' : ''} ${i + 1 === lad ? 'here' : ''}"><b>${i + 1}</b>${esc(l)}</div>`).join('')}</div>
+      <p style="font-size:18px;margin:10px 0 0">${S.status === 'canada' ? '<b>You left the U.S. ladder.</b> You gave up your place in the U.S. line and became a permanent resident of Canada instead. Many skilled workers make this choice.' : `<b>You reached level ${lad} of 4.</b> ${esc(LADDER_NOTE[S.charId]?.[lad] || '')}`}</p>
+      ${epText()}
       <p style="font-size:18px">${E.TURN_YEARS[0]}–${E.yearOf(S)} · Status: <b>${E.LADDER[lad]}</b> · Money: <b>${E.money$(S.money)}</b> · Fees you paid: <b>${E.money$(S.stats.feesYou)}</b> · Your ${S.track === 'h2a' ? 'farm' : 'boss'} paid: <b>${E.money$(S.stats.feesBoss)}</b> · Rejected: <b>${S.stats.rejections}</b>${S.track === 'h2a' ? ` · Seasons worked: <b>${S.seasons}</b>` : ` · Turns waiting in line: <b>${S.stats.turnsInLine}</b>`}</p>
       <div class="end-grid">
         <div class="panel"><h3>Your road</h3><ul class="log-list" style="max-height:320px">${S.history.map((h) => `<li><span class="y">${h.year}</span><span>${h.icon}</span><span>${esc(h.text)}</span></li>`).join('')}</ul></div>

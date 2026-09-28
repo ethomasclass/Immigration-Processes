@@ -9,6 +9,7 @@ export const TYPES = {
   bill: { label: 'Bill', color: 'var(--red)' },
   action: { label: 'Help', color: 'var(--purple)' },
   wait: { label: 'Wait', color: 'var(--orange)' },
+  talent: { label: 'Top Talent', color: 'var(--pink)' },
 };
 
 export const AGENCIES = {
@@ -247,6 +248,45 @@ export const CARDS = {
     tip: 'You can\'t play or throw away this card. It leaves next turn.',
     fact: 'The U.S. consulate in Monterrey handles most visas for Mexican farmworkers.',
   }),
+  // ───────────── Top Talent (EB-1A: you need at least 3 of 10 kinds of proof) ─────────────
+  patent: C(36, { type: 'talent', rarity: 'uncommon', agency: 'YOU', art: 'bulb', photo: 'tech-office', track: 'h1b',
+    name: 'Patent', formNo: 'Top Talent proof',
+    text: 'Your robot invention gets a patent.',
+    what: 'A patent is legal proof that you invented something new. It counts as an important original contribution to your field.',
+    tip: 'Collect 3 Top Talent cards to unlock the Top Talent Petition.',
+    fact: 'The EB-1 "extraordinary ability" green card needs proof in at least 3 of 10 areas.' }),
+  award: C(37, { type: 'talent', rarity: 'uncommon', agency: 'YOU', art: 'trophy', photo: 'graduation', track: 'h1b',
+    name: 'Big Award', formNo: 'Top Talent proof',
+    text: 'You win a national prize for your work.',
+    what: 'Winning a well-known prize is one way to show you are one of the best in your field.',
+    tip: 'Collect 3 Top Talent cards to unlock the Top Talent Petition.',
+    fact: 'Winning a major world prize, like a Nobel, counts all by itself.' }),
+  press: C(38, { type: 'talent', rarity: 'uncommon', agency: 'YOU', art: 'newspaper', photo: 'news', track: 'h1b',
+    name: 'In the News', formNo: 'Top Talent proof',
+    text: 'A tech magazine writes a story about your work.',
+    what: 'Articles written about you in major magazines or news sites show that others see your work as important.',
+    tip: 'Collect 3 Top Talent cards to unlock the Top Talent Petition.',
+    fact: 'The articles must be about you and your work, not just mention you.' }),
+  article: C(39, { type: 'talent', rarity: 'uncommon', agency: 'YOU', art: 'book', photo: 'paperwork', track: 'h1b',
+    name: 'Research Paper', formNo: 'Top Talent proof',
+    text: 'You publish your research in a big journal.',
+    what: 'Writing research that experts publish and read is another kind of proof.',
+    tip: 'Collect 3 Top Talent cards to unlock the Top Talent Petition.',
+    fact: 'Many engineers stuck in long lines spend years building this kind of record.' }),
+  judge: C(40, { type: 'talent', rarity: 'uncommon', agency: 'YOU', art: 'gavel', photo: 'interview', track: 'h1b',
+    name: 'Contest Judge', formNo: 'Top Talent proof',
+    text: 'You are asked to judge a national robot contest.',
+    what: 'Being picked to judge other people\'s work shows experts trust your skill.',
+    tip: 'Collect 3 Top Talent cards to unlock the Top Talent Petition.',
+    fact: 'Being a judge is 1 of the 10 kinds of proof for EB-1.' }),
+  'top-talent': C(41, {
+    type: 'form', rarity: 'legendary', agency: 'USCIS', art: 'starbadge', photo: 'statue-liberty', track: 'h1b',
+    name: 'Top Talent Petition', formNo: 'Form I-140 (EB-1A)', payer: 'you', fee: 1315, turns: 1,
+    text: 'File it yourself. Join the faster "top talent" line.',
+    what: 'People with extraordinary ability can ask for a green card on their own, with no boss needed. It uses the EB-1 line, which moves faster than EB-2 for India.',
+    tip: 'Unlocked by 3 Top Talent cards. You need a work visa first. You keep any ticket number you already have.',
+    fact: 'A 2026 study estimated the EB-1 wait for India at about 4–5 years, compared with a projected 179 years in EB-2.',
+  }),
   // ───────────── Reward (shown when you win a green card) ─────────────
   'green-card': C(35, {
     type: 'doc', rarity: 'legendary', agency: 'USCIS', art: 'greencard', photo: 'green-card',
@@ -258,10 +298,10 @@ export const CARDS = {
   }),
 };
 
-export const SET_SIZE = 35;
+export const SET_SIZE = 41;
 
 // Cards that can show up in packs besides the forms and papers you need.
 export const FILLER = {
-  h1b: { money: ['bonus', 'refund', 'roommate'], bill: ['rent', 'car', 'doctor'], action: ['lawyer', 'clinic', 'organize', 'fast-track'], wait: ['backlog'] },
+  h1b: { money: ['bonus', 'refund', 'roommate'], bill: ['rent', 'car', 'doctor'], action: ['lawyer', 'clinic', 'organize', 'fast-track'], wait: ['backlog'], talent: ['patent', 'award', 'press', 'article', 'judge'] },
   h2a: { money: ['extra-hours', 'harvest', 'cousin'], bill: ['school', 'storm', 'doctor', 'car'], action: ['lawyer', 'clinic', 'organize', 'rights'], wait: ['no-appt', 'backlog'] },
 };

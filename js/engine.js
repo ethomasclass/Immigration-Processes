@@ -44,7 +44,10 @@ export const TRACKS = {
     { id: 'pvisa', card: 'immigrant-visa', name: 'Green Card', agency: 'DOS', by: 'you', turns: 1 },
   ],
 };
-const ALL_STEPS = [...TRACKS.h1b, ...TRACKS.h2a, ...TRACKS.h2aPerm];
+// Optional side step: the Top Talent (EB-1A) self-petition, unlocked by 3 Top Talent cards.
+TRACKS.bonus = [{ id: 'eb1', card: 'top-talent', name: 'Top Talent', agency: 'USCIS', by: 'you', turns: 1 }];
+const ALL_STEPS = [...TRACKS.h1b, ...TRACKS.h2a, ...TRACKS.h2aPerm, ...TRACKS.bonus];
+export const TALENT_NEEDED = 3;
 
 export const LADDER = ['No U.S. status', 'Temporary', 'Work visa', 'In line', 'Green card'];
 
@@ -77,6 +80,7 @@ export function newGame({ code, charId, name }) {
     money: ch.startMoney, incomeBonus: 0, wageMult: 1, remitTax: false,
     hand: ch.startHand.map((id) => inst(id)),
     folder: ch.startFolder.map((id) => inst(id)),
+    talent: [],
     steps: {},
     order: TRACKS[ch.track].map((t) => t.id),
     permOrder: ch.track === 'h2a' ? TRACKS.h2aPerm.map((t) => t.id) : [],
@@ -90,7 +94,7 @@ export function newGame({ code, charId, name }) {
     stats: { feesYou: 0, feesBoss: 0, rejections: 0, waitCards: 0, cards: 0, turnsInLine: 0, scammed: false },
   };
   for (const t of ALL_STEPS) {
-    if (s.order.includes(t.id) || s.permOrder.includes(t.id)) s.steps[t.id] = { status: 'todo', timer: 0, missing: [] };
+    if (s.order.includes(t.id) || s.permOrder.includes(t.id) || (t.id === 'eb1' && s.track === 'h1b')) s.steps[t.id] = { status: 'todo', timer: 0, missing: [] };
   }
   if (s.track === 'h2a') {
     for (const id of ['permission', 'request']) Object.assign(s.steps[id], { status: 'approved', auto: true });
@@ -100,7 +104,7 @@ export function newGame({ code, charId, name }) {
 
 // ───────────────────────────── status ─────────────────────────────
 export function ladder(s) {
-  if (s.status === 'canada') return 4;
+  if (s.status === 'canada') return 0;
   if (s.status === 'gc') return 4;
   if (s.status === 'left') return 0;
   if (s.track === 'h1b') {
@@ -172,6 +176,17 @@ function approve(s, id, notes) {
       history(s, '🟩', 'Got a green card!');
       stamp = 'GREEN CARD';
       break;
+    case 'eb1': {
+      const filed = (s.steps.eb1.filedYear ?? yearOf(s)) + 0.3;
+      s.pd = Math.min(s.pd ?? Infinity, s.keptPd ?? Infinity, filed);
+      if (s.chart === 'india') s.chart = 'india-eb1';
+      for (const id of ['perm', 'line']) if (s.steps[id].status !== 'approved') Object.assign(s.steps[id], { status: 'approved', skipped: true });
+      s.tags.push('line');
+      note('uscis', `Top Talent approved! You skip "Prove No American Applied" and join the faster top-talent line. Your ticket number is ${fmtDate(s.pd)}.`, 'great');
+      history(s, '⭐', 'Top Talent petition approved: joined the EB-1 line');
+      stamp = 'TOP TALENT';
+      break;
+    }
     case 'interview':
       s.tags.push('visa');
       note('state', 'Your H-2A visa is ready. It\'s placed in your passport.');
@@ -376,11 +391,13 @@ export function makePack(s) {
   if (decoys.length && pack.length < size - 1 && r.chance(0.35)) pack.push(inst(r.pick(decoys)));
   const pool = FILLER[s.track];
   const w = { money: 32, bill: 28, action: 22, wait: 10 };
+  if (pool.talent && s.talent.length < TALENT_NEEDED) w.talent = 16;
   while (pack.length < size) {
     const type = r.weighted(Object.keys(w), (k) => w[k]);
     let id = r.pick(pool[type]);
     if (id === 'fast-track' && !['visa', 'line'].some((x) => s.steps[x]?.status !== 'approved')) id = 'organize';
     if (type === 'action' && pack.some((c) => c.id === id)) continue; // no duplicate help cards in one pack
+    if (type === 'talent') { const left = pool.talent.filter((t) => !s.talent.includes(t) && !pack.some((c) => c.id === t)); if (!left.length) continue; id = r.pick(left); }
     pack.push(inst(id));
   }
   s.pack = r.shuffle(pack).slice(0, size);
@@ -401,6 +418,12 @@ export function collectCard(s, c) {
     s.folder.push(c);
     return { text: fixMissing(s) ? 'To papers · unblocked a step!' : 'Added to your papers', tone: 'good' };
   }
+  if (card.type === 'talent') {
+    if (s.talent.includes(c.id)) { s.money += 500; return { text: 'Already have it · +$500', tone: 'info' }; }
+    s.talent.push(c.id);
+    const unlocked = unlockTalent(s);
+    return { text: unlocked ? 'Top Talent 3/3 · petition unlocked!' : `Top Talent ${s.talent.length}/${TALENT_NEEDED}`, tone: 'good' };
+  }
   if (card.type === 'wait') {
     s.hand.push({ ...c, ttl: card.ttl });
     s.stats.waitCards++;
@@ -408,6 +431,15 @@ export function collectCard(s, c) {
   }
   s.hand.push(c);
   return { text: 'To your hand', tone: 'info' };
+}
+
+// When you have enough Top Talent proof, the petition card goes straight into your hand.
+export function unlockTalent(s) {
+  if (s.track !== 'h1b' || s.talent.length < TALENT_NEEDED || s.flags.talentUnlocked) return false;
+  s.flags.talentUnlocked = true;
+  s.hand.push(inst('top-talent'));
+  history(s, '⭐', 'Collected 3 Top Talent proofs');
+  return true;
 }
 
 function fixMissing(s) {
@@ -469,6 +501,7 @@ export function playCard(s, u) {
   if (card.type !== 'form') return { kind: 'info', text: 'Only forms and help cards can be played.' };
   if (['left', 'canada'].includes(s.status)) return { kind: 'info', text: 'Your U.S. journey has ended.' };
 
+  if (c.id === 'top-talent') return fileTopTalent(s, c, card);
   const stepId = stepForCard(s, c.id);
   const order = s.order.includes(stepId) ? s.order : s.permOrder;
   if (order === s.permOrder && !s.flags.sponsored) {
@@ -518,6 +551,20 @@ export function playCard(s, u) {
     return { kind: 'approved', stamp, title: 'Approved!', text: `${paid} ${notes.map((n) => n.text).join(' ')}` };
   }
   return { kind: 'filed', stamp: 'SENT', title: 'Sent!', text: `${paid} You'll hear back next turn.` };
+}
+
+function fileTopTalent(s, c, card) {
+  const st = s.steps.eb1;
+  if (s.status !== 'h1b') return { kind: 'info', title: 'Not yet', text: 'You need a work visa first. Keep this card.' };
+  if (s.status === 'gc') return { kind: 'info', title: 'Not needed', text: 'You already have a green card!' };
+  if (st.status !== 'todo') { takeFromHand(s, c.uid); return { kind: 'info', title: 'Already sent', text: 'Your Top Talent Petition is already sent.' }; }
+  takeFromHand(s, c.uid);
+  const paid = payFee(s, card);
+  st.filedYear = yearOf(s);
+  st.status = 'pending';
+  st.timer = 1;
+  history(s, '⭐', 'Sent a Top Talent Petition');
+  return { kind: 'filed', stamp: 'SENT', title: 'Top Talent Petition sent!', text: `${paid} You filed it yourself, with no boss needed. You'll hear back next turn.` };
 }
 
 function useAction(s, c, card) {
@@ -576,7 +623,12 @@ export function resolveDilemma(s, key) {
   const r = rng(s);
   const h = {
     money: (n) => { s.money += n; },
-    addCard: (id) => { const card = CARDS[id]; s.hand.push(inst(id, card.type === 'wait' ? { ttl: card.ttl } : {})); if (card.type === 'wait') s.stats.waitCards++; },
+    addCard: (id) => {
+      const card = CARDS[id];
+      if (card.type === 'talent') { if (!s.talent.includes(id)) s.talent.push(id); unlockTalent(s); return; }
+      s.hand.push(inst(id, card.type === 'wait' ? { ttl: card.ttl } : {}));
+      if (card.type === 'wait') s.stats.waitCards++;
+    },
     history: (icon, text) => history(s, icon, text),
     restartGreenCard: () => restartGreenCard(s),
     end: (outcome) => { s.over = true; s.outcome = outcome; s.status = outcome; },
@@ -635,4 +687,26 @@ export function nextTurn(s) {
 export function progress(s) {
   const order = s.order.filter((id) => stepDef(id).kind !== 'season');
   return { done: order.filter((id) => s.steps[id].status === 'approved').length, total: order.length };
+}
+
+// What happens after the game ends, using the same line speed the game used.
+export function epilogue(s) {
+  const ch = CHARACTERS[s.charId];
+  const endYear = yearOf(s);
+  const age0 = ch.age;
+  const ageAt = (y) => age0 + (y - TURN_YEARS[0]);
+  if (s.status === 'gc') return { kind: 'gc', year: s.gcYear + 5, age: ageAt(s.gcYear + 5) };
+  const waitId = s.track === 'h1b' ? 'wait' : 'pwait';
+  if (s.pd != null && s.steps[waitId]?.status !== 'approved' && !['left', 'canada'].includes(s.status)) {
+    const perYear = CHARTS[s.chart].speed / 1.5;
+    const cutoff = s.line[s.chart];
+    const years = Math.max(1, Math.ceil((s.pd - cutoff) / perYear) + 1);
+    const year = endYear + years;
+    return { kind: 'line', from: cutoff, to: s.pd, endYear, year, age: ageAt(year), label: CHARTS[s.chart].label };
+  }
+  if (s.track === 'h2a') {
+    const later = 2045;
+    return { kind: 'seasonal', year: later, seasons: s.seasons + (later - endYear), age: ageAt(later) };
+  }
+  return { kind: 'none' };
 }

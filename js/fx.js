@@ -74,10 +74,10 @@ export function confettiRain() {
 // ───────────── stamp ─────────────
 const STAMP_COLORS = {
   APPROVED: 'green', SENT: 'blue', ENTERED: 'blue', REJECTED: 'red', 'MISSING PAPERS': 'orange', SELECTED: 'pink',
-  'NOT PICKED': 'red', 'IN LINE': 'blue', 'YOUR TURN': 'pink', 'GREEN CARD': 'green', SCAM: 'red',
+  'NOT PICKED': 'red', 'IN LINE': 'blue', 'YOUR TURN': 'pink', 'GREEN CARD': 'green', SCAM: 'red', 'TOP TALENT': 'pink',
 };
 const BAD = ['REJECTED', 'NOT PICKED', 'SCAM'];
-const BIG = ['GREEN CARD', 'SELECTED', 'YOUR TURN'];
+const BIG = ['GREEN CARD', 'SELECTED', 'YOUR TURN', 'TOP TALENT'];
 export function stamp(text) {
   if (!text) return;
   const wrap = document.createElement('div');

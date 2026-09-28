@@ -62,6 +62,10 @@ const ART = {
   reject: `${rect(40, 14, 80, 74, P, 3)}${o('M52 28H108M52 38H108M52 48H96M52 58H108')}<g transform="rotate(-14 80 60)">${rect(46, 50, 68, 22, 'none', 4, `stroke="${RED}" style="stroke:${RED};stroke-width:4"`)}${txt(80, 67, 'REJECTED', 15, RED)}</g>`,
   stack: `${rect(56, 70, 50, 14, P, 1, 'transform="rotate(3 80 76)"')}${rect(52, 56, 50, 14, P, 1, 'transform="rotate(-4 76 62)"')}${rect(58, 42, 50, 14, P, 1, 'transform="rotate(5 82 48)"')}${rect(50, 28, 50, 14, P, 1, 'transform="rotate(-3 74 34)"')}${rect(56, 14, 50, 14, P, 1, 'transform="rotate(6 80 20)"')}`,
   calendar: `${rect(38, 18, 84, 70, P, 5)}${rect(38, 18, 84, 16, RED, 5)}${o('M58 12V24M102 12V24')}${[0, 1, 2].map((r) => [0, 1, 2, 3].map((c) => o(`M${50 + c * 18} ${44 + r * 14}l8 8M${58 + c * 18} ${44 + r * 14}l-8 8`)).join('')).join('')}`,
+  bulb: `${o('M80 14C62 14 50 28 50 44C50 56 58 62 64 70V78H96V70C102 62 110 56 110 44C110 28 98 14 80 14Z', Y)}${rect(64, 78, 32, 10, GREY, 2)}${o('M68 92H92')}${o('M72 44L80 56L88 44', 'none')}${o('M30 30L40 36M130 30L120 36M26 56H38M134 56H122')}`,
+  newspaper: `${rect(30, 16, 100, 72, P, 3)}${rect(38, 24, 84, 14, K)}${txt(80, 35, 'TECH TODAY', 11, Y)}${rect(38, 44, 36, 34, SKY)}${circ(56, 56, 7, TAN)}${o('M44 78C46 68 66 68 68 78')}${o('M82 48H122M82 58H122M82 68H112M82 78H118')}`,
+  gavel: `<g transform="rotate(-30 80 44)">${rect(56, 26, 48, 22, TAN, 4)}${rect(76, 48, 8, 40, TAN, 2)}</g>${rect(40, 78, 80, 10, TAN, 3)}${star(118, 26, 10, Y)}`,
+  starbadge: `${circ(80, 48, 34, Y)}${circ(80, 48, 25, PINK)}${star(80, 48, 18, P)}${o('M60 78L52 96L66 90L72 100L78 82', RED)}${o('M100 78L108 96L94 90L88 100L82 82', RED)}`,
   // decisions
   plane: `${o('M24 60L136 36L144 44L60 76L50 70L70 60Z', P)}${o('M80 52L64 26H76L102 48Z', SKY)}${o('M48 68L34 82H44L60 72Z', SKY)}${circ(40, 30, 10, Y)}`,
   briefcase: `${rect(34, 34, 92, 54, TAN, 6)}${o('M64 34V24H96V34')}${o('M34 56H126')}${rect(72, 50, 16, 12, Y, 2)}`,
@@ -77,7 +81,7 @@ const ART = {
   road: `${o('M20 90C60 70 40 40 80 30C120 20 110 10 140 8', 'none', 'stroke-width="10"')}${o('M20 90C60 70 40 40 80 30C120 20 110 10 140 8', 'none', `stroke="${Y}" style="stroke:${Y};stroke-width:2;stroke-dasharray:6 6"`)}`,
 };
 
-const BG = { form: '#7fb2ff', doc: MINT, money: '#fff08a', bill: '#ffa29a', action: '#c3b1ff', wait: '#ffc08f' };
+const BG = { form: '#7fb2ff', doc: MINT, money: '#fff08a', bill: '#ffa29a', action: '#c3b1ff', wait: '#ffc08f', talent: '#ffb3d4' };
 
 export function art(key, type = 'form', bg) {
   const a = ART[key] || ART.visa;
